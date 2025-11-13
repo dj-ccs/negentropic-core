@@ -1,0 +1,4 @@
+# Ignore all embedded C code
+embedded/**
+tests/*.c
+tests/*.h

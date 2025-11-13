@@ -1,0 +1,51 @@
+{
+  "name": "negentropic-core",
+  "version": "0.1.0-alpha",
+  "description": "Physics and systems engine powering the Negentropic ecosystem with SE(3)-based solvers",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/negentropic-core.git"
+  },
+  "keywords": [
+    "physics",
+    "simulation",
+    "se3",
+    "lie-groups",
+    "atmosphere",
+    "hydrology",
+    "soil",
+    "unity-bindings"
+  ],
+  "author": "Negentropic Core Contributors",
+  "license": "(MIT OR GPL-3.0-or-later)",
+  "bugs": {
+    "url": "https://github.com/your-org/negentropic-core/issues"
+  },
+  "homepage": "https://github.com/your-org/negentropic-core#readme",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

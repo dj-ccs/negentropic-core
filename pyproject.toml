@@ -1,0 +1,81 @@
+[project]
+name = "negentropic-core"
+version = "0.1.0-alpha"
+description = "Physics and systems engine powering the Negentropic ecosystem with SE(3)-based solvers"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT OR GPL-3.0-or-later"}
+authors = [
+    {name = "Negentropic Core Contributors"}
+]
+keywords = ["physics", "simulation", "se3", "lie-groups", "atmosphere", "hydrology", "soil"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/negentropic-core"
+Documentation = "https://negentropic-core.readthedocs.io"
+Repository = "https://github.com/your-org/negentropic-core.git"
+Issues = "https://github.com/your-org/negentropic-core/issues"
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["negentropic_core"]
+
+[tool.setuptools.package-dir]
+negentropic_core = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --cov=src --cov-report=term-missing"
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false

@@ -170,6 +170,10 @@ bool state_step(void* sim, float dt) {
     se3_pose_t* poses = (se3_pose_t*)(memory + internal->poses_offset);
     float* scalar_fields = (float*)(memory + internal->scalar_fields_offset);
 
+    /* Suppress unused warnings for future use */
+    (void)poses;
+    (void)scalar_fields;
+
     /* TODO: Call integrator based on config.integrator_type
      * For now, this is a stub that does nothing
      */

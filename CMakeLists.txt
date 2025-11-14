@@ -55,7 +55,12 @@ endif()
 # Optimization flags
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     if(NOT MSVC)
-        add_compile_options(-O3 -march=native -ffast-math)
+        if(EMSCRIPTEN)
+            # WASM doesn't support -march=native
+            add_compile_options(-O3 -ffast-math)
+        else()
+            add_compile_options(-O3 -march=native -ffast-math)
+        endif()
     endif()
 endif()
 
@@ -218,23 +223,19 @@ if(BUILD_WASM)
 
         target_compile_options(negentropic_core_wasm PRIVATE
             -O3
-            -pthread
         )
 
         target_link_options(negentropic_core_wasm PRIVATE
             -O3
-            -s WASM=1
-            -s STRICT=1
-            -s ALLOW_MEMORY_GROWTH=1
-            -s INITIAL_MEMORY=64MB
-            -s MAXIMUM_MEMORY=512MB
-            -s PTHREAD_POOL_SIZE=2
-            -s USE_PTHREADS=1
-            -s MODULARIZE=1
-            -s EXPORT_ES6=1
-            -s EXPORT_NAME='createNegentropic'
-            -s EXPORTED_FUNCTIONS='["_malloc","_free","_neg_create","_neg_step","_neg_get_state_json","_neg_get_state_binary","_neg_get_state_binary_size","_neg_get_state_hash","_neg_reset_from_binary","_neg_destroy"]'
-            -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]'
+            -sWASM=1
+            -sALLOW_MEMORY_GROWTH=1
+            -sINITIAL_MEMORY=64MB
+            -sMAXIMUM_MEMORY=512MB
+            -sMODULARIZE=1
+            -sEXPORT_ES6=1
+            "-sEXPORT_NAME=createNegentropic"
+            "-sEXPORTED_FUNCTIONS=[\"_malloc\",\"_free\",\"_neg_create\",\"_neg_step\",\"_neg_get_state_json\",\"_neg_get_state_binary\",\"_neg_get_state_binary_size\",\"_neg_get_state_hash\",\"_neg_reset_from_binary\",\"_neg_destroy\"]"
+            "-sEXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\"]"
             --emit-tsd negentropic_core.d.ts
         )
 

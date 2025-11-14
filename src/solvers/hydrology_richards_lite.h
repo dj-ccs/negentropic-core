@@ -269,6 +269,11 @@ typedef struct {
                              * Physical meaning: nonlinearity solver limit
                              * Typical: 20 */
 
+    int use_free_drainage;  /* Bottom boundary condition flag [-]
+                             * 0: No-flux (closed bottom, for mass conservation tests)
+                             * 1: Free drainage (∂ψ/∂z = -1, allows water to drain out)
+                             * Default: 1 (free drainage is more realistic) */
+
 } RichardsLiteParams;
 
 /**

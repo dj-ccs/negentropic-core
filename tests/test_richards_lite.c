@@ -94,6 +94,7 @@ static RichardsLiteParams create_default_params(void) {
     params.CFL_factor = 0.5f;       /* 50% of CFL limit */
     params.picard_tol = 1e-4f;      /* Picard convergence */
     params.picard_max_iter = 20;
+    params.use_free_drainage = 1;   /* Default: free drainage (realistic) */
     return params;
 }
 
@@ -214,6 +215,7 @@ static int test_mass_conservation(void) {
 
     RichardsLiteParams params = create_default_params();
     params.E_bare_ref = 0.0f;  /* No evaporation for this test */
+    params.use_free_drainage = 0;  /* No-flux bottom boundary for true mass conservation */
 
     /* Initial water */
     float W_init = compute_total_water(cells, GRID_NX, GRID_NY, GRID_NZ);

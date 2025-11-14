@@ -203,20 +203,22 @@ void richards_lite_init(void) {
  *
  * Boundary conditions:
  *   - Top (k=0): flux = rainfall - infiltration
- *   - Bottom (k=nz-1): free drainage (dψ/dz = -1)
+ *   - Bottom (k=nz-1): free drainage (dψ/dz = -1) OR no-flux (configurable)
  *
  * @param column [IN/OUT] Array of nz Cells (vertical column)
  * @param nz Number of vertical layers
  * @param dt Timestep [s]
  * @param rainfall Rainfall rate [m/s]
  * @param lut van Genuchten lookup table
+ * @param use_free_drainage 1=free drainage bottom BC, 0=no-flux bottom BC
  */
 static void solve_vertical_implicit(
     Cell* column,
     int nz,
     float dt,
     float rainfall,
-    const VanGenuchtenLUT* lut
+    const VanGenuchtenLUT* lut,
+    int use_free_drainage
 ) {
     /* Allocate tridiagonal system arrays */
     static float a[256];  /* Lower diagonal */
@@ -238,12 +240,13 @@ static void solve_vertical_implicit(
             /* Lookup K at current θ (linearization point) */
             float K_k = vG_K_lookup(theta_k, lut);
 
-            /* Apply intervention multiplier (REGv1 coupling via K_tensor) */
+            /* Apply intervention multiplier */
             float M_K_zz = column[k].M_K_zz;
             float K_eff_k = K_k * M_K_zz;
 
-            /* Also apply REGv1 bonus: read K_tensor[8] (ZZ component) */
-            K_eff_k = column[k].K_tensor[8];  /* Use REGv1-modified value */
+            /* Note: K_tensor[8] is set during initialization to K_s * M_K_zz * REGv1_bonus.
+             * For now, we use the simple multiplier approach. Future: use K_tensor directly
+             * with proper relative conductivity scaling. */
 
             /* Coefficients for implicit diffusion */
             float coeff = dt / (dz * dz);
@@ -256,20 +259,33 @@ static void solve_vertical_implicit(
                 d[k] = theta_k + dt * rainfall / dz;
 
             } else if (k == nz - 1) {
-                /* Bottom boundary: free drainage (dψ/dz = -1) */
-                a[k] = -coeff * K_eff_k;
-                c[k] = 0.0f;
-                b[k] = 1.0f - a[k];
-                d[k] = theta_k + dt * K_eff_k / dz;  /* Gravity drainage */
+                /* Bottom boundary: configurable drainage */
+                if (use_free_drainage) {
+                    /* Free drainage (dψ/dz = -1): water can drain out */
+                    a[k] = -coeff * K_eff_k;
+                    c[k] = 0.0f;
+                    b[k] = 1.0f - a[k];
+                    d[k] = theta_k + dt * K_eff_k / dz;  /* Gravity drainage */
+                } else {
+                    /* No-flux boundary: dθ/dz = 0 (closed bottom for mass conservation) */
+                    a[k] = -coeff * K_eff_k;
+                    c[k] = 0.0f;
+                    b[k] = 1.0f - a[k];
+                    d[k] = theta_k;  /* No flux term */
+                }
 
             } else {
                 /* Interior points */
-                float K_k_minus = vG_K_lookup(column[k-1].theta, lut);
-                float K_k_plus = vG_K_lookup(column[k+1].theta, lut);
+                float K_k_minus_raw = vG_K_lookup(column[k-1].theta, lut);
+                float K_k_plus_raw = vG_K_lookup(column[k+1].theta, lut);
+
+                /* Apply intervention multipliers to neighbors */
+                float K_k_minus = K_k_minus_raw * column[k-1].M_K_zz;
+                float K_k_plus = K_k_plus_raw * column[k+1].M_K_zz;
 
                 /* Harmonic mean for K at interfaces */
-                float K_minus_half = 2.0f * K_k * K_k_minus / (K_k + K_k_minus + 1e-12f);
-                float K_plus_half = 2.0f * K_k * K_k_plus / (K_k + K_k_plus + 1e-12f);
+                float K_minus_half = 2.0f * K_eff_k * K_k_minus / (K_eff_k + K_k_minus + 1e-12f);
+                float K_plus_half = 2.0f * K_eff_k * K_k_plus / (K_eff_k + K_k_plus + 1e-12f);
 
                 a[k] = -coeff * K_minus_half;
                 c[k] = -coeff * K_plus_half;
@@ -434,7 +450,8 @@ void richards_lite_step(
             int idx_base = (j * nx + i) * nz;
             Cell* column = &cells[idx_base];
 
-            solve_vertical_implicit(column, nz, dt, rainfall, &g_vG_lut_default);
+            solve_vertical_implicit(column, nz, dt, rainfall, &g_vG_lut_default,
+                                   params->use_free_drainage);
         }
     }
 
@@ -546,7 +563,10 @@ float richards_lite_connectivity(float zeta, float zeta_c, float a_c) {
 }
 
 float richards_lite_total_water(const Cell* cell) {
-    return cell->theta * cell->dz + cell->h_surface + cell->zeta;
+    /* Total water = vadose zone + surface ponding
+     * Note: zeta is already included in h_surface, so we don't add it separately
+     * to avoid double-counting */
+    return cell->theta * cell->dz + cell->h_surface;
 }
 
 int richards_lite_runoff_mechanism(const Cell* cell, float rainfall) {

@@ -10,9 +10,13 @@
  */
 
 #include "state.h"
+#include "include/state_versioning.h"
+#include "include/neg_error.h"
+#include "include/rng.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
 
 /* XXH3 for deterministic hashing (stub for now) */
 #define XXH_INLINE_ALL
@@ -53,6 +57,10 @@ typedef struct {
 
     /* Error tracking */
     char last_error[256];           /* Last error message */
+    NegErrorFlags error_flags;      /* Numerical error flags */
+
+    /* Deterministic RNG */
+    NegRNG rng;                     /* Deterministic random number generator */
 
     /* Data follows this struct in memory:
      *   se3_pose_t poses[config.num_entities];
@@ -87,6 +95,12 @@ void* state_create(const SimulationConfig* cfg) {
     sim->total_energy = 0.0f;
     sim->max_numerical_error = 0.0f;
     sim->last_error[0] = '\0';
+
+    /* Initialize error flags */
+    neg_error_init(&sim->error_flags);
+
+    /* Initialize deterministic RNG with default seed */
+    neg_rng_seed(&sim->rng, 0xDEADBEEFCAFEBABEULL);
 
     /* Set memory offsets */
     sim->poses_offset = base_size;
@@ -132,6 +146,7 @@ bool state_get_view(void* sim, SimulationState* out_state) {
     out_state->state_hash = state_hash(sim);
     out_state->energy = internal->total_energy;
     out_state->max_error = internal->max_numerical_error;
+    out_state->error_flags = internal->error_flags;
 
     return true;
 }
@@ -173,15 +188,24 @@ bool state_step(void* sim, float dt) {
  * STATE SERIALIZATION
  * ======================================================================== */
 
+/* Binary format header */
+#define NEG_STATE_MAGIC "NEGSTATE"
+#define NEG_STATE_MAGIC_LEN 8
+
 size_t state_get_binary_size(void* sim) {
     if (!sim) return 0;
 
     SimulationInternal* internal = (SimulationInternal*)sim;
 
-    /* Binary format: version + timestamp + num_entities + poses + num_scalars + scalar_fields */
+    /* Binary format: MAGIC + VERSION + TIMESTAMP + HASH + DATA_SIZE + data */
     size_t size = 0;
-    size += sizeof(uint32_t);  /* version */
-    size += sizeof(uint64_t);  /* timestamp */
+    size += NEG_STATE_MAGIC_LEN;           /* magic */
+    size += sizeof(uint32_t);              /* version */
+    size += sizeof(uint64_t);              /* timestamp (milliseconds since Unix epoch) */
+    size += sizeof(uint64_t);              /* hash */
+    size += sizeof(uint32_t);              /* data_size */
+
+    /* Data section */
     size += sizeof(uint32_t);  /* num_entities */
     size += internal->config.num_entities * sizeof(se3_pose_t);
     size += sizeof(uint32_t);  /* num_scalar_fields */
@@ -202,15 +226,32 @@ size_t state_to_binary(void* sim, uint8_t* buffer, size_t max_len) {
     float* scalar_fields = (float*)(memory + internal->scalar_fields_offset);
 
     uint8_t* ptr = buffer;
+    uint8_t* data_start = NULL;
 
-    /* Write version */
-    uint32_t version = 1;
+    /* Write MAGIC */
+    memcpy(ptr, NEG_STATE_MAGIC, NEG_STATE_MAGIC_LEN);
+    ptr += NEG_STATE_MAGIC_LEN;
+
+    /* Write VERSION */
+    uint32_t version = NEG_STATE_VERSION;
     memcpy(ptr, &version, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
 
-    /* Write timestamp */
-    memcpy(ptr, &internal->timestamp, sizeof(uint64_t));
+    /* Write TIMESTAMP (convert microseconds to milliseconds) */
+    uint64_t timestamp_ms = internal->timestamp / 1000;
+    memcpy(ptr, &timestamp_ms, sizeof(uint64_t));
     ptr += sizeof(uint64_t);
+
+    /* Reserve space for HASH (will compute later) */
+    uint64_t* hash_ptr = (uint64_t*)ptr;
+    ptr += sizeof(uint64_t);
+
+    /* Reserve space for DATA_SIZE */
+    uint32_t* data_size_ptr = (uint32_t*)ptr;
+    ptr += sizeof(uint32_t);
+
+    /* Data section starts here */
+    data_start = ptr;
 
     /* Write poses */
     uint32_t num_entities = internal->config.num_entities;
@@ -228,6 +269,14 @@ size_t state_to_binary(void* sim, uint8_t* buffer, size_t max_len) {
     memcpy(ptr, scalar_fields, num_scalar_fields * sizeof(float));
     ptr += num_scalar_fields * sizeof(float);
 
+    /* Compute data size */
+    uint32_t data_size = (uint32_t)(ptr - data_start);
+    *data_size_ptr = data_size;
+
+    /* Compute hash of entire buffer */
+    uint64_t hash = xxh3_hash(buffer, (size_t)(ptr - buffer));
+    *hash_ptr = hash;
+
     return (size_t)(ptr - buffer);
 }
 
@@ -240,20 +289,42 @@ bool state_reset_from_binary(void* sim, const uint8_t* buffer, size_t len) {
     const uint8_t* ptr = buffer;
     const uint8_t* end = buffer + len;
 
-    /* Read version */
+    /* Verify MAGIC */
+    if (ptr + NEG_STATE_MAGIC_LEN > end) return false;
+    if (memcmp(ptr, NEG_STATE_MAGIC, NEG_STATE_MAGIC_LEN) != 0) return false;
+    ptr += NEG_STATE_MAGIC_LEN;
+
+    /* Read VERSION */
     if (ptr + sizeof(uint32_t) > end) return false;
     uint32_t version;
     memcpy(&version, ptr, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
 
-    if (version != 1) return false;  /* Unsupported version */
+    if (version != NEG_STATE_VERSION) return false;  /* Unsupported version */
 
-    /* Read timestamp */
+    /* Read TIMESTAMP */
     if (ptr + sizeof(uint64_t) > end) return false;
-    memcpy(&internal->timestamp, ptr, sizeof(uint64_t));
+    uint64_t timestamp_ms;
+    memcpy(&timestamp_ms, ptr, sizeof(uint64_t));
+    ptr += sizeof(uint64_t);
+    internal->timestamp = timestamp_ms * 1000;  /* Convert to microseconds */
+
+    /* Read HASH */
+    if (ptr + sizeof(uint64_t) > end) return false;
+    uint64_t stored_hash;
+    memcpy(&stored_hash, ptr, sizeof(uint64_t));
     ptr += sizeof(uint64_t);
 
-    /* Read poses */
+    /* Read DATA_SIZE */
+    if (ptr + sizeof(uint32_t) > end) return false;
+    uint32_t data_size;
+    memcpy(&data_size, ptr, sizeof(uint32_t));
+    ptr += sizeof(uint32_t);
+
+    /* Verify data size */
+    if (ptr + data_size > end) return false;
+
+    /* Data section starts here - read poses */
     if (ptr + sizeof(uint32_t) > end) return false;
     uint32_t num_entities;
     memcpy(&num_entities, ptr, sizeof(uint32_t));
@@ -308,4 +379,17 @@ uint64_t state_hash(void* sim) {
     free(buffer);
 
     return hash;
+}
+
+/* ========================================================================
+ * ERROR FLAGS ACCESS
+ * ======================================================================== */
+
+bool state_get_error_flags(void* sim, NegErrorFlags* out_flags) {
+    if (!sim || !out_flags) return false;
+
+    SimulationInternal* internal = (SimulationInternal*)sim;
+    *out_flags = internal->error_flags;
+
+    return true;
 }

@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "../core/include/neg_error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -170,6 +171,17 @@ uint64_t neg_get_state_hash(void* sim);
  * @return Static error string, or NULL if no error
  */
 const char* neg_get_last_error(void);
+
+/**
+ * Get numerical error flags from simulation.
+ *
+ * Retrieves accumulated error flags that indicate numerical issues
+ * such as overflow, underflow, NaN, integration failures, etc.
+ *
+ * @param sim Opaque simulation handle
+ * @return Error flags structure (check error_flags.total_errors for count)
+ */
+NegErrorFlags neg_get_error_flags(void* sim);
 
 /**
  * Get diagnostic metrics (JSON format).

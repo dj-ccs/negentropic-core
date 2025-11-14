@@ -65,6 +65,8 @@ endif()
 
 set(CORE_SOURCES
     src/core/state.c
+    src/core/neg_error.c
+    src/core/rng.c
     src/api/negentropic.c
     embedded/se3_math.c
     embedded/trig_tables.c
@@ -74,6 +76,11 @@ set(CORE_SOURCES
 
 set(CORE_HEADERS
     src/core/state.h
+    src/core/include/state_versioning.h
+    src/core/include/neg_error.h
+    src/core/include/rng.h
+    src/core/include/se3_types.h
+    src/core/include/platform.h
     src/api/negentropic.h
     embedded/se3_edge.h
     embedded/t_bsp.h
@@ -92,6 +99,7 @@ if(BUILD_SHARED_LIBS)
     )
     target_include_directories(negentropic_core PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/core/include>
         $<INSTALL_INTERFACE:include>
     )
 endif()
@@ -104,6 +112,7 @@ set_target_properties(negentropic_core_static PROPERTIES
 )
 target_include_directories(negentropic_core_static PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/core/include>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -135,6 +144,15 @@ if(BUILD_TESTS)
     endif()
 
     add_test(NAME IntegratorSmokeTest COMMAND integrator_smoke_test)
+
+    # RNG determinism test
+    add_executable(rng_test
+        tests/rng_test.c
+        src/core/rng.c
+    )
+    target_include_directories(rng_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    add_test(NAME RNGTest COMMAND rng_test)
 
     # Existing fixed-point test
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixed_point_accuracy_test.c")

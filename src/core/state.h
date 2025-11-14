@@ -17,7 +17,12 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include "../../embedded/se3_edge.h"
+#include "include/state_versioning.h"
+#include "include/neg_error.h"
+#include "include/rng.h"
+#include "include/se3_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -79,6 +84,9 @@ typedef struct {
     uint64_t state_hash;            /* XXH3 hash of full state */
     float energy;                   /* Total system energy (optional) */
     float max_error;                /* Maximum numerical error (optional) */
+
+    /* Error flags (read-only view) */
+    NegErrorFlags error_flags;      /* Accumulated error flags */
 } SimulationState;
 
 /* ========================================================================
@@ -163,6 +171,15 @@ size_t state_to_binary(void* sim, uint8_t* buffer, size_t max_len);
  * @return Required buffer size in bytes
  */
 size_t state_get_binary_size(void* sim);
+
+/**
+ * Get error flags from simulation state.
+ *
+ * @param sim Opaque simulation handle
+ * @param out_flags Output error flags (caller-allocated)
+ * @return true on success, false on error
+ */
+bool state_get_error_flags(void* sim, NegErrorFlags* out_flags);
 
 #ifdef __cplusplus
 }

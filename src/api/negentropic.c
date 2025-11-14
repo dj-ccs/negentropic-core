@@ -206,9 +206,9 @@ int neg_get_state_json(void* sim, char* buffer, size_t max_len) {
     }
 
     /* TODO: Proper JSON serialization */
-    /* For now, simple format */
+    /* For now, simple format with hash as hex string */
     int written = snprintf(buffer, max_len,
-        "{\"timestamp\":%llu,\"version\":%u,\"num_entities\":%u,\"num_scalar_values\":%u,\"hash\":%llu}",
+        "{\"timestamp\":%llu,\"version\":%u,\"num_entities\":%u,\"num_scalar_values\":%u,\"hash\":\"0x%016llx\"}",
         (unsigned long long)state.timestamp,
         state.version,
         state.num_entities,
@@ -235,6 +235,21 @@ uint64_t neg_get_state_hash(void* sim) {
 
 const char* neg_get_last_error(void) {
     return last_error[0] ? last_error : NULL;
+}
+
+NegErrorFlags neg_get_error_flags(void* sim) {
+    NegErrorFlags flags;
+    neg_error_init(&flags);
+
+    if (!sim) {
+        return flags;
+    }
+
+    if (!state_get_error_flags(sim, &flags)) {
+        neg_error_init(&flags);
+    }
+
+    return flags;
 }
 
 int neg_get_diagnostics(void* sim, char* buffer, size_t max_len) {

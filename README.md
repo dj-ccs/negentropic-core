@@ -53,6 +53,30 @@
 
 See REGv2_Microbial.json for complete parameters and `test_regeneration_microbial.c` for validation.
 
+### 🌍 NEW: GEO-v1 Sprint - Global WASM Geospatial Interface
+*In Progress: November 14, 2025*
+
+**What's New**: The browser-based 3D Earth interface is now under development! GEO-v1 brings negentropic-core to the web with real-time visualization, AI-driven initialization, and zero-copy WebAssembly architecture.
+
+**Architecture**:
+- **Thread 1 (Main)**: CesiumJS for planetary-scale 3D globe rendering
+- **Thread 2 (Core Worker)**: negentropic-core.wasm running at 10 Hz
+- **Thread 3 (Render Worker)**: deck.gl on OffscreenCanvas at 60 FPS
+- **Zero-Copy Data Flow**: SharedArrayBuffer + Atomics for worker synchronization
+
+**AI Integration**:
+- IBM/NASA Prithvi-100M for landscape initialization
+- 6-band HLS satellite imagery processing
+- Automatic land cover → simulation state mapping
+
+**Features**:
+- Click-to-simulate: Select any region on Earth
+- Real-time moisture, SOM, and vegetation visualization
+- Performance: 10 Hz physics + 60 FPS rendering
+- Cross-platform: Works in Chrome, Firefox, Edge (with SharedArrayBuffer support)
+
+See [web/README.md](web/README.md) for complete documentation and quick start guide.
+
 ### ✅ REGv1 Sprint Complete - Regeneration Cascade Solver
 *Completed: November 14, 2025*
 
@@ -103,6 +127,7 @@ See [docs/science/microscale_hydrology.md](docs/science/microscale_hydrology.md)
 - [x] **Test Suite**: REGv2 90% (44/49), REGv1 94.7% (36/38)
 
 ### ⚠️ In Progress
+- [x] **GEO-v1**: Global WASM Geospatial Interface (browser-based 3D Earth simulation)
 - [ ] **ATMv1**: Biotic Pump atmospheric solver (next sprint)
 - [ ] **Full HYD-RLv1 Integration**: Apply REGv2 K_unsat, C_cond, Q_lift to hydrology solver
 - [ ] **Parameter Calibration**: Least-squares fitting to 1995-2010 timeseries

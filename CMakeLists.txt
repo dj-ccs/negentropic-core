@@ -213,24 +213,29 @@ if(BUILD_WASM)
 
         set_target_properties(negentropic_core_wasm PROPERTIES
             OUTPUT_NAME "negentropic_core"
-            SUFFIX ".wasm"
+            SUFFIX ".js"
         )
 
         target_compile_options(negentropic_core_wasm PRIVATE
             -O3
-            -s WASM=1
-            -s STRICT=1
-            -s ALLOW_MEMORY_GROWTH=0
-            -s INITIAL_MEMORY=16MB
+            -pthread
         )
 
         target_link_options(negentropic_core_wasm PRIVATE
             -O3
             -s WASM=1
             -s STRICT=1
-            -s ALLOW_MEMORY_GROWTH=0
-            -s EXPORTED_FUNCTIONS='["_neg_create","_neg_step","_neg_get_state_json","_neg_get_state_binary","_neg_get_state_hash","_neg_reset_from_binary","_neg_destroy"]'
+            -s ALLOW_MEMORY_GROWTH=1
+            -s INITIAL_MEMORY=64MB
+            -s MAXIMUM_MEMORY=512MB
+            -s PTHREAD_POOL_SIZE=2
+            -s USE_PTHREADS=1
+            -s MODULARIZE=1
+            -s EXPORT_ES6=1
+            -s EXPORT_NAME='createNegentropic'
+            -s EXPORTED_FUNCTIONS='["_malloc","_free","_neg_create","_neg_step","_neg_get_state_json","_neg_get_state_binary","_neg_get_state_binary_size","_neg_get_state_hash","_neg_reset_from_binary","_neg_destroy"]'
             -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]'
+            --emit-tsd negentropic_core.d.ts
         )
 
         target_include_directories(negentropic_core_wasm PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -186,6 +186,21 @@ if(BUILD_TESTS)
 
         add_test(NAME BioticPumpTest COMMAND test_biotic_pump)
     endif()
+
+    # Richards-Lite hydrology solver test (HYD-RLv1)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_richards_lite.c")
+        add_executable(test_richards_lite
+            tests/test_richards_lite.c
+            src/solvers/hydrology_richards_lite.c
+        )
+        target_include_directories(test_richards_lite PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+        if(UNIX AND NOT APPLE)
+            target_link_libraries(test_richards_lite PRIVATE m)
+        endif()
+
+        add_test(NAME RichardsLiteTest COMMAND test_richards_lite)
+    endif()
 endif()
 
 # ========================================================================

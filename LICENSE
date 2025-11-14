@@ -69,13 +69,18 @@ Commercial use includes, but is not limited to:
 
 **Revenue Share Terms:**
 
-  - Fee: 1% of the final charge/revenue for services using this Software
+  - Fee: 1% of Gross Revenue for services using this Software
+
+  - **"Gross Revenue" Definition**: All revenue received from customers for any
+    product or service that incorporates, uses, or is derived from this Software,
+    before any deductions for costs, expenses, or fees.
+
   - Example 1: Agronomy service charges $500/hectare for analysis
-               → License fee: $5/hectare
+               → License fee: $5/hectare (1% of gross)
   - Example 2: Consulting firm charges $10,000 for restoration planning
-               → License fee: $100 per engagement
+               → License fee: $100 per engagement (1% of gross)
   - Example 3: SaaS platform charges $2,000/month subscription
-               → License fee: $20/month per subscriber
+               → License fee: $20/month per subscriber (1% of gross)
 
 **Payment Terms:**
 
@@ -86,25 +91,31 @@ Commercial use includes, but is not limited to:
 
 **How to Obtain a Commercial License:**
 
-  1. Contact us at: negentropic-licensing@example.com
-     (Or open an issue at: https://github.com/dj-ccs/negentropic-core/issues
-      with subject "[COMMERCIAL LICENSE REQUEST]")
+  1. **Contact for License Agreement Template or Custom Terms:**
+     - Email: licensing@negentropic.org
+     - GitHub Issue: https://github.com/dj-ccs/negentropic-core/issues
+       (Subject: "[COMMERCIAL LICENSE REQUEST]")
+     - We respond within 5 business days
 
   2. Provide details of your intended commercial use:
      - Nature of service/product
      - Expected revenue model
      - Estimated usage volume
+     - Integration timeline
 
   3. We will provide:
-     - Commercial License Agreement
+     - Commercial License Agreement template
      - Payment schedule and reporting requirements
      - Technical support options (optional)
+     - Invoice and payment instructions
 
-**Grace Period:**
+**Evaluation Period:**
 
-Organizations may use this Software commercially for up to 90 days to evaluate
-suitability before entering into a Commercial License Agreement. After 90 days,
-continued commercial use requires an executed license agreement.
+Commercial entities may use this Software for internal evaluation and testing
+for up to 90 days without payment. This grace period allows organizations to
+assess suitability and integration requirements before entering into a
+Commercial License Agreement. After 90 days, continued commercial use requires
+an executed license agreement with ongoing revenue share payments.
 
 **Exemptions:**
 
@@ -113,6 +124,16 @@ The following are NOT considered commercial use (use Research License instead):
   - Pilot studies and proof-of-concept projects (non-revenue-generating)
   - Open-source projects released under GPL-3.0 or compatible licenses
 
+**Prohibited Uses:**
+
+The following uses are expressly prohibited under any license:
+  - Reverse-engineering this Software to create competing products that
+    undermine the open research ecosystem
+  - Using this Software to create proprietary "black box" systems that
+    obscure scientific methodology
+  - Redistributing modified versions without clear attribution and changelog
+  - Any use that violates the spirit of open science and regenerative economics
+
 **Enforcement:**
 
 Unauthorized commercial use is a violation of copyright law. We reserve the
@@ -120,9 +141,11 @@ right to:
   - Audit usage upon reasonable notice
   - Seek injunctive relief and damages for unauthorized use
   - Terminate licenses for non-compliance
+  - Revoke licenses for prohibited uses outlined above
 
 However, our goal is collaboration, not litigation. We will work in good faith
-with all users to find fair and sustainable licensing arrangements.
+with all users to find fair and sustainable licensing arrangements that support
+both your success and the continued development of this open research platform.
 
 ================================================================================
 SECTION C: PROVENANCE & ATTRIBUTION
@@ -182,19 +205,38 @@ Revenue from commercial licenses will be reinvested in:
   - Documentation and educational resources
   - Community support and collaboration
   - Open publication of research findings
+  - **Real-world restoration projects** that generate validation data
+
+**The Self-Reinforcing Loop:**
+
+This creates a regenerative feedback cycle:
+  1. Commercial success → Revenue for R&D and real-world restoration
+  2. Real restoration → Better validation data and scientific insights
+  3. Better science → More accurate simulation engine
+  4. Better engine → More commercial adoption
+  5. Repeat → **Pure negentropy**
+
+The more this engine helps heal landscapes commercially, the more resources
+flow back to improve the science and fund actual ecosystem restoration.
 
 ================================================================================
 QUESTIONS?
 ================================================================================
 
 For licensing questions, please contact:
-  - Email: negentropic-licensing@example.com
+  - Email: licensing@negentropic.org
   - GitHub Issues: https://github.com/dj-ccs/negentropic-core/issues
   - Tag: [LICENSE]
+  - Response time: Within 5 business days
 
 We are committed to working with you to find a fair licensing arrangement that
 supports both your work and the continued development of this open research
 platform.
+
+**License Agreement Templates:**
+Standard commercial license agreements and custom terms are available upon
+request. We maintain transparent, predictable licensing to minimize friction
+for legitimate commercial users.
 
 ================================================================================
 LEGAL NOTICES

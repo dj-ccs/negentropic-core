@@ -4,18 +4,27 @@
  * Implements the slow-timescale vegetation-SOM-moisture feedback loop.
  * Uses fixed-point 16.16 arithmetic for performance-critical calculations.
  *
+ * REGv2 Integration:
+ *   SOM dynamics now use microbial priming functions from REGv2 module.
+ *   This enables explosive, nonlinear recovery through fungal dominance.
+ *
  * Author: negentropic-core team
- * Version: 0.1.0 (REGv1)
+ * Version: 0.2.0 (REGv1 with REGv2 integration)
  * License: MIT OR GPL-3.0
  */
 
 #include "regeneration_cascade.h"
+#include "regeneration_microbial.h"  /* REGv2 integration */
 #include "hydrology_richards_lite.h"
 #include "hydrology_richards_lite_internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+/* Global REGv2 parameters (loaded at initialization) */
+static REGv2_MicrobialParams g_regv2_params;
+static int g_regv2_enabled = 0;  /* Flag: 0 = use old simple SOM, 1 = use REGv2 */
 
 /* ========================================================================
  * FIXED-POINT ARITHMETIC MACROS (16.16 format)
@@ -156,6 +165,32 @@ int regeneration_cascade_load_params(const char* filename, RegenerationParams* p
 }
 
 /* ========================================================================
+ * REGv2 INTEGRATION
+ * ======================================================================== */
+
+/**
+ * Load REGv2 microbial parameters and enable enhanced SOM dynamics.
+ *
+ * Call this function at initialization to enable the REGv2 microbial priming
+ * module. If not called, REGv1 will use the simple linear SOM model.
+ *
+ * @param filename Path to REGv2_Microbial.json
+ * @return 0 on success, -1 on error
+ */
+int regeneration_cascade_enable_regv2(const char* filename) {
+    if (regv2_microbial_load_params(filename, &g_regv2_params) != 0) {
+        fprintf(stderr, "[REGv1] ERROR: Failed to load REGv2 parameters\n");
+        return -1;
+    }
+
+    g_regv2_enabled = 1;
+    fprintf(stderr, "[REGv1] REGv2 microbial priming ENABLED\n");
+    fprintf(stderr, "[REGv1] SOM dynamics will use fungal-bacterial priming with explosive recovery\n");
+
+    return 0;
+}
+
+/* ========================================================================
  * CORE SOLVER IMPLEMENTATION
  * ======================================================================== */
 
@@ -236,8 +271,43 @@ static inline void regeneration_cascade_step_single_cell(
 
     float dV = logistic_term + moisture_term + som_term;
 
-    /* SOM ODE: dSOM/dt = a1 * V - a2 * SOM */
-    float dSOM = params->a1 * V - params->a2 * SOM;
+    /* SOM ODE: Choose between simple model (REGv1) or microbial priming (REGv2) */
+    float dSOM;
+    if (g_regv2_enabled) {
+        /* REGv2: Microbial priming with fungal-bacterial dynamics
+         * dSOM/dt = P_micro(...) - D_resp(...) */
+
+        /* Compute production term with fungal priming */
+        float P_production = regv2_P_micro(
+            c->C_labile,
+            theta_avg,
+            c->soil_temp_C,
+            c->N_fix,
+            c->Phi_agg,
+            c->FB_ratio,
+            &g_regv2_params.som,
+            &g_regv2_params.fb_table
+        );
+
+        /* Compute respiration loss */
+        float D_loss = regv2_D_resp(
+            c->soil_temp_C,
+            theta_avg,
+            c->O2,
+            &g_regv2_params.som
+        );
+
+        /* Net SOM change: production - respiration
+         * NOTE: Need to convert from [g C m⁻² d⁻¹] to [% SOM yr⁻¹]
+         * Assuming: 1% SOM ≈ 100 g C m⁻² (typical conversion)
+         * So: [g C m⁻² d⁻¹] × (365.25 d/yr) / (100 g C m⁻² per %SOM) = [% SOM yr⁻¹] */
+        const float carbon_to_SOM_conversion = 365.25f / 100.0f;  /* days/yr ÷ (g C m⁻² per %SOM) */
+        dSOM = (P_production - D_loss) * carbon_to_SOM_conversion;
+
+    } else {
+        /* REGv1: Simple linear model (original) */
+        dSOM = params->a1 * V - params->a2 * SOM;
+    }
 
     /* --- 3. Update State & Convert back to Fixed-Point --- */
     float next_V   = V + dV * dt_years;

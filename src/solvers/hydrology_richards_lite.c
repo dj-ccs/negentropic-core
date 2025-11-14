@@ -8,6 +8,13 @@
  * with earthwork interventions, using Grok's high-performance "Richards-Lite v2"
  * numerical scheme.
  *
+ * REGv2 Integration Hooks:
+ *   TODO: Add calls to REGv2 functions in richards_lite_step():
+ *     1. Apply regv2_K_unsat() to modify K_eff with aggregation bonus
+ *     2. Add regv2_C_cond() as surface water source (condensation/dew)
+ *     3. Add regv2_Q_lift() as nighttime water redistribution
+ *   See regeneration_microbial.h for function signatures.
+ *
  * Conceptual Framework (Weill et al. 2009 [1.1]):
  *
  *   1. A thin porous "runoff layer" at the surface handles overland flow as

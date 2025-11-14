@@ -159,6 +159,23 @@ typedef struct {
 int regeneration_cascade_load_params(const char* filename, RegenerationParams* params);
 
 /**
+ * Load REGv2 microbial parameters and enable enhanced SOM dynamics.
+ *
+ * Call this function at initialization to enable the REGv2 microbial priming
+ * module. If not called, REGv1 will use the simple linear SOM model.
+ *
+ * When enabled, SOM dynamics use:
+ *   - Fungal-bacterial priming (8-entry lookup table with hard anchors)
+ *   - Monod-Arrhenius kinetics for temperature and moisture
+ *   - Aggregate stability enhancement
+ *   - Explosive recovery when F:B > 1.0 (Johnson-Su effect)
+ *
+ * @param filename      Path to REGv2_Microbial.json parameter file
+ * @return 0 on success, -1 on error
+ */
+int regeneration_cascade_enable_regv2(const char* filename);
+
+/**
  * Advance regeneration state by one timestep.
  *
  * Implements the slow-timescale vegetation-SOM-moisture feedback dynamics

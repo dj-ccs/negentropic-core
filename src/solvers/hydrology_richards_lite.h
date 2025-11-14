@@ -226,6 +226,63 @@ typedef struct {
     float dx;               /* Horizontal cell size [m]
                              * Typical: 1-100 m (plot to catchment scale) */
 
+    /* ---- REGv2 Coupling: Microbial Priming & Condenser Landscapes ---- */
+    float C_labile;         /* Labile carbon pool [g C m⁻²]
+                             * Range: [0, 100] g C m⁻²
+                             * Modified by: REGv2 microbial solver
+                             * Physical meaning: readily available carbon for microbes */
+
+    float soil_temp_C;      /* Soil temperature [°C]
+                             * Range: [-10, 50] °C typical
+                             * Modified by: thermal solver or external forcing
+                             * Physical meaning: temperature for microbial activity */
+
+    float N_fix;            /* Nitrogen fixation rate [g N m⁻² d⁻¹]
+                             * Range: [0, 2.0] g N m⁻² d⁻¹
+                             * Modified by: vegetation/legume model
+                             * Physical meaning: biological N input rate */
+
+    float Phi_agg;          /* Aggregate stability index [-]
+                             * Range: [0, 1]
+                             * Modified by: REGv2 (function of SOM, AMF, EPS)
+                             * Physical meaning: soil structure quality (0=poor, 1=excellent) */
+
+    float FB_ratio;         /* Fungal:Bacterial biomass ratio [-]
+                             * Range: [0.1, 1000+]
+                             * Modified by: REGv2 microbial dynamics
+                             * Physical meaning: microbial community composition
+                             * Critical thresholds: 1.0 (pivot), 2.0 (bio-rain), 3.0 (explosive) */
+
+    float Phi_hyphae;       /* Mycorrhizal hyphal density index [-]
+                             * Range: [0, 1]
+                             * Modified by: REGv2 AMF dynamics
+                             * Physical meaning: hyphal network development (0=none, 1=dense) */
+
+    float O2;               /* Soil oxygen availability [-]
+                             * Range: [0, 1]
+                             * Modified by: aeration model or function of theta
+                             * Physical meaning: oxygen limitation factor for respiration */
+
+    float C_sup;            /* Host carbon supply to mycorrhizae [g C m⁻² d⁻¹]
+                             * Range: [0, 10] g C m⁻² d⁻¹
+                             * Modified by: vegetation photosynthesis allocation
+                             * Physical meaning: carbon flow to fungal symbionts */
+
+    float LAI;              /* Leaf area index [-]
+                             * Range: [0, 8]
+                             * Modified by: vegetation dynamics
+                             * Physical meaning: one-sided leaf area per ground area */
+
+    int n_cond_neighbors;   /* Number of condenser neighbors [-]
+                             * Range: [0, 8] (for 3×3 neighborhood)
+                             * Modified by: spatial analysis of rock mulch/vegetation patches
+                             * Physical meaning: adjacent cells with condensation enhancement */
+
+    float theta_deep;       /* Deep soil moisture for hydraulic lift [m³ m⁻³]
+                             * Range: [theta_r, theta_s]
+                             * Modified by: deep layer or external water table
+                             * Physical meaning: moisture source for nighttime redistribution */
+
 } Cell;
 
 /**

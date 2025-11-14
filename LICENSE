@@ -1,24 +1,44 @@
 NEGENTROPIC-CORE - DUAL LICENSE
+================================================================================
 
-This project is dual-licensed under both the MIT License and the GNU General
-Public License v3.0 (GPL-3.0). You may choose which license to use when
-incorporating this software into your projects.
+This project is dual-licensed to encourage open research and scientific
+collaboration while sustaining ongoing R&D and maintenance through fair
+compensation from commercial applications.
+
+CHOOSE YOUR LICENSE:
+  1. Research & Nonprofit License (FREE) - Section A
+  2. Commercial License (1% Revenue Share) - Section B
 
 ================================================================================
-MIT LICENSE
+SECTION A: RESEARCH & NONPROFIT LICENSE (FREE)
 ================================================================================
 
 Copyright (c) 2025 Negentropic Core Contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+FREE USE is granted for:
+  - Academic research and scientific publications
+  - Educational purposes (teaching, training, workshops)
+  - Nonprofit organizations and NGOs
+  - Personal non-commercial projects
+  - Open-source software development (GPL-compatible projects)
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Permission is hereby granted, free of charge, to any person or organization
+meeting the above criteria to use, copy, modify, merge, publish, distribute,
+and/or create derivative works of this software and associated documentation
+files (the "Software"), subject to the following conditions:
+
+  1. This license notice and attribution must be included in all copies or
+     substantial portions of the Software.
+
+  2. Use must be limited to research, educational, or nonprofit purposes only.
+
+  3. Any publications, reports, or educational materials using this Software
+     must cite:
+       "Negentropic Core - Regenerative Ecosystem Simulation Engine"
+       https://github.com/dj-ccs/negentropic-core
+
+  4. If you distribute modified versions, you must clearly indicate changes
+     made to the original Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -29,31 +49,109 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ================================================================================
-GNU GENERAL PUBLIC LICENSE v3.0
+SECTION B: COMMERCIAL LICENSE (1% REVENUE SHARE)
 ================================================================================
 
-Copyright (C) 2025 Negentropic Core Contributors
+Copyright (c) 2025 Negentropic Core Contributors
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+COMMERCIAL USE REQUIRES A LICENSE with a 1% revenue share on services rendered.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+**What Constitutes Commercial Use:**
 
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
+Commercial use includes, but is not limited to:
+  - Agricultural consulting and advisory services
+  - Precision agriculture and agronomy applications
+  - Land management and restoration consulting
+  - Carbon credit assessment and verification services
+  - Soil health monitoring and analysis for paying clients
+  - Integration into proprietary software sold or licensed for profit
+  - Any service or product where this Software contributes to revenue generation
 
-Full text of GPL-3.0: https://www.gnu.org/licenses/gpl-3.0.en.html
+**Revenue Share Terms:**
+
+  - Fee: 1% of Gross Revenue for services using this Software
+
+  - **"Gross Revenue" Definition**: All revenue received from customers for any
+    product or service that incorporates, uses, or is derived from this Software,
+    before any deductions for costs, expenses, or fees.
+
+  - Example 1: Agronomy service charges $500/hectare for analysis
+               → License fee: $5/hectare (1% of gross)
+  - Example 2: Consulting firm charges $10,000 for restoration planning
+               → License fee: $100 per engagement (1% of gross)
+  - Example 3: SaaS platform charges $2,000/month subscription
+               → License fee: $20/month per subscriber (1% of gross)
+
+**Payment Terms:**
+
+  - Quarterly reporting and payment required
+  - Detailed usage reports due 30 days after quarter end
+  - Payment due within 60 days of quarter end
+  - Minimum annual license fee: $500 USD
+
+**How to Obtain a Commercial License:**
+
+  1. **Contact for License Agreement Template or Custom Terms:**
+     - Email: licensing@negentropic.org
+     - GitHub Issue: https://github.com/dj-ccs/negentropic-core/issues
+       (Subject: "[COMMERCIAL LICENSE REQUEST]")
+     - We respond within 5 business days
+
+  2. Provide details of your intended commercial use:
+     - Nature of service/product
+     - Expected revenue model
+     - Estimated usage volume
+     - Integration timeline
+
+  3. We will provide:
+     - Commercial License Agreement template
+     - Payment schedule and reporting requirements
+     - Technical support options (optional)
+     - Invoice and payment instructions
+
+**Evaluation Period:**
+
+Commercial entities may use this Software for internal evaluation and testing
+for up to 90 days without payment. This grace period allows organizations to
+assess suitability and integration requirements before entering into a
+Commercial License Agreement. After 90 days, continued commercial use requires
+an executed license agreement with ongoing revenue share payments.
+
+**Exemptions:**
+
+The following are NOT considered commercial use (use Research License instead):
+  - Internal R&D at for-profit companies (not customer-facing)
+  - Pilot studies and proof-of-concept projects (non-revenue-generating)
+  - Open-source projects released under GPL-3.0 or compatible licenses
+
+**Prohibited Uses:**
+
+The following uses are expressly prohibited under any license:
+  - Reverse-engineering this Software to create competing products that
+    undermine the open research ecosystem
+  - Using this Software to create proprietary "black box" systems that
+    obscure scientific methodology
+  - Redistributing modified versions without clear attribution and changelog
+  - Any use that violates the spirit of open science and regenerative economics
+
+**Enforcement:**
+
+Unauthorized commercial use is a violation of copyright law. We reserve the
+right to:
+  - Audit usage upon reasonable notice
+  - Seek injunctive relief and damages for unauthorized use
+  - Terminate licenses for non-compliance
+  - Revoke licenses for prohibited uses outlined above
+
+However, our goal is collaboration, not litigation. We will work in good faith
+with all users to find fair and sustainable licensing arrangements that support
+both your success and the continued development of this open research platform.
 
 ================================================================================
-PROVENANCE & ATTRIBUTION
+SECTION C: PROVENANCE & ATTRIBUTION
 ================================================================================
 
-This software integrates mathematical foundations from:
+This software integrates mathematical and computational foundations from:
 
 1. **Unified Conscious Evolution Framework (UCF)**
    - Repository: https://github.com/dj-ccs/Unified-Conscious-Evolution-Framework
@@ -70,20 +168,84 @@ This software integrates mathematical foundations from:
    - Repository: https://github.com/id-Software/DOOM
    - License: GNU GPL-2.0
    - Used in embedded/ directory for ESP32-S3 edge computing
+   - Reference: Abrash, M. (1997) "Graphics Programming Black Book"
+
+4. **Scientific Research References**
+   - Loess Plateau restoration data (Fu et al. 2011)
+   - Fungal-bacterial priming (Malik et al. 2016, Creamer et al. 2022)
+   - Johnson-Su Compost methodology (Johnson & Johnson 2020)
+   - Fog harvesting and condenser landscapes (Kaseke et al. 2017)
+   - Hydraulic redistribution (Prieto et al. 2012)
+   - Full references in docs/science/macroscale_regeneration.md
+
+All contributors retain copyright to their contributions but agree to license
+them under the terms of this dual-license structure.
 
 ================================================================================
-LICENSE SELECTION GUIDANCE
+WHY THIS LICENSE STRUCTURE?
 ================================================================================
 
-**Choose MIT if:**
-- You want to use this in proprietary/closed-source software
-- You need maximum permissiveness and flexibility
-- You are building commercial applications
+We believe that scientific knowledge should be freely accessible for research
+and public good, while commercial applications should contribute to the ongoing
+R&D, maintenance, and improvement of the tools they profit from.
 
-**Choose GPL-3.0 if:**
-- You want to ensure derivative works remain open source
-- You are building free/open-source software
-- You want to promote open science and collaboration
+This dual-license structure:
+  ✓ Enables free academic research and open science
+  ✓ Supports NGOs and nonprofits working on restoration
+  ✓ Encourages open-source ecosystem development
+  ✓ Creates sustainable funding for long-term maintenance
+  ✓ Ensures commercial users contribute proportionally to value received
+  ✓ Keeps the fee low (1%) to encourage adoption over reinvention
 
-For questions about licensing, please open an issue at:
-https://github.com/your-org/negentropic-core/issues
+**Our Commitment:**
+
+Revenue from commercial licenses will be reinvested in:
+  - Ongoing R&D and scientific validation
+  - Performance optimization and new features
+  - Documentation and educational resources
+  - Community support and collaboration
+  - Open publication of research findings
+  - **Real-world restoration projects** that generate validation data
+
+**The Self-Reinforcing Loop:**
+
+This creates a regenerative feedback cycle:
+  1. Commercial success → Revenue for R&D and real-world restoration
+  2. Real restoration → Better validation data and scientific insights
+  3. Better science → More accurate simulation engine
+  4. Better engine → More commercial adoption
+  5. Repeat → **Pure negentropy**
+
+The more this engine helps heal landscapes commercially, the more resources
+flow back to improve the science and fund actual ecosystem restoration.
+
+================================================================================
+QUESTIONS?
+================================================================================
+
+For licensing questions, please contact:
+  - Email: licensing@negentropic.org
+  - GitHub Issues: https://github.com/dj-ccs/negentropic-core/issues
+  - Tag: [LICENSE]
+  - Response time: Within 5 business days
+
+We are committed to working with you to find a fair licensing arrangement that
+supports both your work and the continued development of this open research
+platform.
+
+**License Agreement Templates:**
+Standard commercial license agreements and custom terms are available upon
+request. We maintain transparent, predictable licensing to minimize friction
+for legitimate commercial users.
+
+================================================================================
+LEGAL NOTICES
+================================================================================
+
+This license agreement is governed by the laws of [JURISDICTION TO BE DETERMINED].
+
+For formal legal interpretation, the English version of this license is
+authoritative. Translations are provided for convenience only.
+
+Last Updated: 2025-11-14
+License Version: 2.0 (Commercial Revenue Share Model)

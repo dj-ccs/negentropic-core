@@ -77,6 +77,7 @@
 #define HYDROLOGY_RICHARDS_LITE_H
 
 #include <stddef.h>
+#include <stdint.h>  /* For int32_t (fixed_t) */
 
 /* ========================================================================
  * CORE DATA STRUCTURES
@@ -187,6 +188,19 @@ typedef struct {
                              * Modified by: REGv1 regeneration_cascade_step()
                              * Units: percent by mass (top layer 0-30 cm)
                              * Physical meaning: carbon storage + water-holding capacity */
+
+    /* ---- REGv1 Fixed-Point State (for performance-critical calculations) ---- */
+    int32_t vegetation_cover_fxp; /* Fixed-point 16.16 version of vegetation_cover
+                                    * Format: FRACUNIT = 65536 represents 1.0
+                                    * Used by: REGv1 for performance-critical ODE calculations
+                                    * Synced with: vegetation_cover (float version)
+                                    * Performance: ~2× faster than float on embedded systems */
+
+    int32_t SOM_percent_fxp;      /* Fixed-point 16.16 version of SOM_percent
+                                    * Format: FRACUNIT = 65536 represents 1.0% SOM
+                                    * Used by: REGv1 for performance-critical ODE calculations
+                                    * Synced with: SOM_percent (float version)
+                                    * Note: Represents %SOM directly (not fraction) */
 
     /* ---- REGv1 Coupling: Effective Parameters (computed by REGv1, read by HYD) ---- */
     float porosity_eff;     /* Effective porosity [m³/m³]

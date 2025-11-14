@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Chihuahuan Desert Regeneration Parameters",
+  "description": "Parameter set for REGv1 solver calibrated to arid/semi-arid desert vegetation-SOM-moisture feedbacks",
+  "version": "0.1.0",
+  "scientific_basis": "Edison Research Specification - Desert/Arid Comparators",
+
+  "vegetation_dynamics": {
+    "r_V": {
+      "value": 0.06,
+      "units": "yr^-1",
+      "CI_95": [0.03, 0.12],
+      "description": "Vegetation intrinsic growth rate (slower than Loess Plateau)",
+      "note": "Arid conditions limit growth rate"
+    },
+    "K_V": {
+      "value": 0.45,
+      "units": "fraction",
+      "CI_95": [0.30, 0.60],
+      "description": "Vegetation carrying capacity (lower than mesic sites)",
+      "note": "Water limitation reduces maximum achievable cover"
+    },
+    "lambda1": {
+      "value": 0.35,
+      "units": "yr^-1 per (m^3/m^3)",
+      "CI_95": [0.10, 0.70],
+      "description": "Moisture-to-vegetation coupling coefficient",
+      "note": "Strong moisture limitation makes vegetation highly responsive to water availability"
+    },
+    "lambda2": {
+      "value": 0.12,
+      "units": "yr^-1 per %SOM",
+      "CI_95": [0.05, 0.25],
+      "description": "SOM-to-vegetation coupling coefficient",
+      "note": "Higher sensitivity to SOM in arid systems (larger marginal benefit)"
+    }
+  },
+
+  "thresholds": {
+    "theta_star": {
+      "value": 0.10,
+      "units": "m^3/m^3",
+      "CI_95": [0.08, 0.13],
+      "description": "Critical soil moisture threshold (lower in arid systems)",
+      "note": "Adapted vegetation with lower moisture requirements"
+    },
+    "SOM_star": {
+      "value": 0.7,
+      "units": "%",
+      "CI_95": [0.4, 1.2],
+      "description": "Critical SOM threshold for positive feedback lock-in",
+      "note": "Lower baseline SOM in arid systems"
+    }
+  },
+
+  "som_dynamics": {
+    "a1": {
+      "value": 0.10,
+      "units": "% SOM yr^-1 per V",
+      "CI_95": [0.05, 0.18],
+      "description": "SOM input rate per unit vegetation cover",
+      "note": "Lower primary productivity in arid systems; but long-term desert restoration shows large SOM increases (10-40× after 30 yr)"
+    },
+    "a2": {
+      "value": 0.02,
+      "units": "yr^-1",
+      "CI_95": [0.01, 0.05],
+      "description": "SOM decomposition/decay rate (slower in arid conditions)",
+      "note": "Lower microbial activity and slower decomposition in water-limited environments"
+    }
+  },
+
+  "hydrological_coupling": {
+    "eta1": {
+      "value": 7.0,
+      "units": "mm per %SOM",
+      "CI_95": [3.0, 12.0],
+      "description": "Water holding capacity gain per % SOM increase",
+      "note": "Arid soils often show strong SOM→infiltration gains (higher marginal benefit)",
+      "conversion": "7mm = 0.007m added to effective porosity"
+    },
+    "K_vertical_multiplier": {
+      "value": 1.15,
+      "units": "-",
+      "description": "Compounding multiplier for vertical conductivity per % SOM increase",
+      "note": "Same structural relationship as Loess Plateau",
+      "formula": "K_zz *= 1.15^dSOM"
+    }
+  },
+
+  "implementation": {
+    "dt_typical": {
+      "value": 1.0,
+      "units": "years",
+      "description": "Typical timestep for regeneration cascade solver (slow timescale)"
+    },
+    "call_frequency": {
+      "value": 128,
+      "units": "hydrology steps",
+      "description": "REGv1 called once every 128 HYD-RLv1 steps"
+    },
+    "performance_budget": {
+      "max_fraction": 0.05,
+      "description": "< 5% of total frame budget"
+    }
+  },
+
+  "validation_targets": {
+    "desert_restoration_sanity_check": {
+      "description": "30-year simulation from bare desert to restored grassland",
+      "initial_conditions": {
+        "vegetation_cover": 0.05,
+        "SOM_percent": 0.2,
+        "theta_avg": 0.06
+      },
+      "expected_final_state": {
+        "vegetation_cover": "> 0.30",
+        "SOM_percent": "> 1.0",
+        "trajectory": "Slower sigmoid with longer time constants than Loess Plateau"
+      }
+    }
+  },
+
+  "references": {
+    "pqac-00000000": "Desert restoration SOM increases (10-40× after 30 yr)",
+    "pqac-00000001": "12-yr grass restoration example: SOM 0.38 → 18.02 g/kg",
+    "note": "Use cautiously as upper bounds when extrapolating to semi-arid sites"
+  }
+}

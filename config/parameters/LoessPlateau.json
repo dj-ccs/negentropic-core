@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Loess Plateau Regeneration Parameters",
+  "description": "Parameter set for REGv1 solver calibrated to Loess Plateau vegetation-SOM-moisture feedbacks (1995-2010)",
+  "version": "0.1.0",
+  "scientific_basis": "Edison Research Specification - Loess Plateau Anchors",
+
+  "vegetation_dynamics": {
+    "r_V": {
+      "value": 0.12,
+      "units": "yr^-1",
+      "CI_95": [0.06, 0.20],
+      "description": "Vegetation intrinsic growth rate",
+      "source": "Remote-sensing cover dynamics; greening stabilization within a few years after planting (1999-2002)"
+    },
+    "K_V": {
+      "value": 0.70,
+      "units": "fraction",
+      "CI_95": [0.60, 0.80],
+      "description": "Vegetation carrying capacity (maximum fractional cover)",
+      "source": "Forest+grass fraction trajectories (2000s-2010s)"
+    },
+    "lambda1": {
+      "value": 0.50,
+      "units": "yr^-1 per (m^3/m^3)",
+      "CI_95": [0.20, 0.90],
+      "description": "Moisture-to-vegetation coupling coefficient",
+      "source": "Regional water-yield decrease with greening ~1-1.6 mm/yr",
+      "note": "Controls how soil moisture above theta_star promotes vegetation growth"
+    },
+    "lambda2": {
+      "value": 0.08,
+      "units": "yr^-1 per %SOM",
+      "CI_95": [0.03, 0.15],
+      "description": "SOM-to-vegetation coupling coefficient",
+      "source": "SOM coupling prior; to be refined with chronosequences",
+      "note": "Controls how SOM above SOM_star promotes vegetation growth"
+    }
+  },
+
+  "thresholds": {
+    "theta_star": {
+      "value": 0.17,
+      "units": "m^3/m^3",
+      "CI_95": [0.14, 0.20],
+      "description": "Critical soil moisture threshold for vegetation growth activation",
+      "source": "Semi-arid loess soil moisture thresholds; to be refined against runoff responses"
+    },
+    "SOM_star": {
+      "value": 1.2,
+      "units": "%",
+      "CI_95": [0.8, 1.8],
+      "description": "Critical SOM threshold for positive feedback lock-in",
+      "source": "Lock-in threshold consistent with rapid early accumulation then stabilization"
+    }
+  },
+
+  "som_dynamics": {
+    "a1": {
+      "value": 0.18,
+      "units": "% SOM yr^-1 per V",
+      "CI_95": [0.08, 0.30],
+      "description": "SOM input rate per unit vegetation cover",
+      "source": "Plateau SOC sequestration ~0.712 Tg C/yr scaled by area and ΔV",
+      "note": "Rapid SOC input in early restoration decades (strong increase first ~10-23 yr)"
+    },
+    "a2": {
+      "value": 0.035,
+      "units": "yr^-1",
+      "CI_95": [0.02, 0.06],
+      "description": "SOM decomposition/decay rate",
+      "source": "Chronosequence stabilization after ~10-23 yr",
+      "note": "Temperature modulation optional for v1.0"
+    }
+  },
+
+  "hydrological_coupling": {
+    "eta1": {
+      "value": 5.0,
+      "units": "mm per %SOM",
+      "CI_95": [2.0, 9.0],
+      "description": "Water holding capacity gain per % SOM increase",
+      "source": "Retention gain per % SOM; to be regressed from infiltration/soil-moisture experiments",
+      "note": "Hydrological bonus: +1% SOM → +5mm water holding capacity",
+      "conversion": "5mm = 0.005m added to effective porosity"
+    },
+    "K_vertical_multiplier": {
+      "value": 1.15,
+      "units": "-",
+      "description": "Compounding multiplier for vertical conductivity per % SOM increase",
+      "note": "Hydrological bonus: +1% SOM → 15% increase in K_zz (compounding)",
+      "formula": "K_zz *= 1.15^dSOM"
+    }
+  },
+
+  "implementation": {
+    "dt_typical": {
+      "value": 1.0,
+      "units": "years",
+      "description": "Typical timestep for regeneration cascade solver (slow timescale)"
+    },
+    "call_frequency": {
+      "value": 128,
+      "units": "hydrology steps",
+      "description": "REGv1 called once every 128 HYD-RLv1 steps"
+    },
+    "performance_budget": {
+      "max_fraction": 0.05,
+      "description": "< 5% of total frame budget"
+    }
+  },
+
+  "validation_targets": {
+    "loess_plateau_sanity_check": {
+      "description": "20-year simulation from degraded to regenerated state",
+      "initial_conditions": {
+        "vegetation_cover": 0.15,
+        "SOM_percent": 0.5,
+        "theta_avg": 0.12
+      },
+      "expected_final_state": {
+        "vegetation_cover": "> 0.60",
+        "SOM_percent": "> 2.0",
+        "trajectory": "Sigmoid curve with inflection around year 8-12"
+      }
+    }
+  },
+
+  "references": {
+    "pqac-00000012": "NDVI/percent-cover trends",
+    "pqac-00000013": "Greening breakpoints concentrated 2007-2010",
+    "pqac-00000009": "Hydrological stabilization within ~3 years post-implementation",
+    "pqac-00000008": "SOM chronosequence data",
+    "pqac-00000005": "Plateau SOC sequestration",
+    "pqac-00000002": "Vegetation vs bare slope runoff/infiltration experiments"
+  }
+}

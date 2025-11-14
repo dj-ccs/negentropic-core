@@ -54,3 +54,4 @@ tests/fixed_point_test
 tests/t_bsp_test
 tests/test_biotic_pump
 tests/test_richards_lite
+tests/test_regeneration_cascade

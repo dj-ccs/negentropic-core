@@ -19,10 +19,11 @@ SRC_TRIG = $(EMBEDDED_DIR)/trig_tables.c
 TEST_EXEC_MATH = fixed_point_test
 TEST_EXEC_TBSP = t_bsp_test
 TEST_EXEC_BIOTIC = test_biotic_pump
+TEST_EXEC_REG = test_regeneration_cascade
 
-.PHONY: all test test-math test-tbsp test-biotic clean
+.PHONY: all test test-math test-tbsp test-biotic test-reg clean
 
-all: $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP) $(TEST_EXEC_BIOTIC)
+all: $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP) $(TEST_EXEC_BIOTIC) $(TEST_EXEC_REG)
 
 $(TEST_EXEC_MATH): fixed_point_accuracy_test.c $(SRC_MATH) $(SRC_TRIG)
 	@echo "Building fixed-point accuracy tests..."
@@ -39,7 +40,12 @@ $(TEST_EXEC_BIOTIC): test_biotic_pump.c ../src/solvers/atmosphere_biotic.c
 	$(CC) $(CFLAGS) -I.. -o $@ $^ $(LDFLAGS)
 	@echo "✓ Build complete: $(TEST_EXEC_BIOTIC)"
 
-test: test-math test-tbsp test-biotic
+$(TEST_EXEC_REG): test_regeneration_cascade.c ../src/solvers/regeneration_cascade.c
+	@echo "Building Regeneration Cascade (REGv1) solver tests..."
+	$(CC) $(CFLAGS) -I../src/solvers -o $@ $^ $(LDFLAGS)
+	@echo "✓ Build complete: $(TEST_EXEC_REG)"
+
+test: test-math test-tbsp test-biotic test-reg
 
 test-math: $(TEST_EXEC_MATH)
 	@echo ""
@@ -59,8 +65,14 @@ test-biotic: $(TEST_EXEC_BIOTIC)
 	@echo ""
 	./$(TEST_EXEC_BIOTIC)
 
+test-reg: $(TEST_EXEC_REG)
+	@echo ""
+	@echo "Running Regeneration Cascade (REGv1) solver tests..."
+	@echo ""
+	./$(TEST_EXEC_REG)
+
 clean:
-	rm -f $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP) $(TEST_EXEC_BIOTIC)
+	rm -f $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP) $(TEST_EXEC_BIOTIC) $(TEST_EXEC_REG)
 	@echo "✓ Cleaned build artifacts"
 
 # Help target

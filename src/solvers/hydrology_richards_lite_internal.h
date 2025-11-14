@@ -400,4 +400,47 @@ static inline float cfl_timestep(
     return safety_factor * (dx * dx) / (2.0f * K_eff + 1e-12f);
 }
 
+/* ========================================================================
+ * REGv1 COUPLING HELPERS
+ * ======================================================================== */
+
+/**
+ * Calculate average soil moisture from vertical profile.
+ *
+ * Computes a weighted average of the top 3 soil layers, focusing on the
+ * root zone where vegetation-moisture coupling is strongest.
+ *
+ * Weights are chosen for:
+ *   - Physical relevance: top layers most important for vegetation
+ *   - Performance: simple multiplication (no divisions)
+ *   - Sum to 1.0: maintains physical units [m³/m³]
+ *
+ * Physical basis:
+ *   - Layer 0 (0-10 cm): 50% weight (surface soil, highest root density)
+ *   - Layer 1 (10-20 cm): 30% weight (active root zone)
+ *   - Layer 2 (20-40 cm): 20% weight (deeper roots, moisture buffer)
+ *
+ * @param theta_profile Array of volumetric water content [m³/m³] for vertical layers
+ * @param n_layers Number of layers available (typically 3+)
+ * @return Average moisture [m³/m³] weighted toward root zone
+ */
+static inline float calculate_theta_avg(const float* theta_profile, int n_layers) {
+    if (n_layers >= 3) {
+        /* Full weighted average (top 3 layers) */
+        return (theta_profile[0] * 0.5f) +
+               (theta_profile[1] * 0.3f) +
+               (theta_profile[2] * 0.2f);
+    } else if (n_layers == 2) {
+        /* Only 2 layers: weight 60/40 */
+        return (theta_profile[0] * 0.6f) +
+               (theta_profile[1] * 0.4f);
+    } else if (n_layers == 1) {
+        /* Single layer: use directly */
+        return theta_profile[0];
+    } else {
+        /* No layers: return zero (should not happen) */
+        return 0.0f;
+    }
+}
+
 #endif /* HYDROLOGY_RICHARDS_LITE_INTERNAL_H */

@@ -427,8 +427,6 @@ void richards_lite_step(
     float rainfall,
     void* diagnostics
 ) {
-    (void)diagnostics;  /* Reserved for future use */
-
     if (!g_lut_initialized) {
         fprintf(stderr, "ERROR: richards_lite_init() must be called first!\n");
         return;

@@ -236,7 +236,6 @@ if(BUILD_WASM)
             "-sEXPORT_NAME=createNegentropic"
             "-sEXPORTED_FUNCTIONS=[\"_malloc\",\"_free\",\"_neg_create\",\"_neg_step\",\"_neg_get_state_json\",\"_neg_get_state_binary\",\"_neg_get_state_binary_size\",\"_neg_get_state_hash\",\"_neg_reset_from_binary\",\"_neg_destroy\"]"
             "-sEXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\"]"
-            --emit-tsd negentropic_core.d.ts
         )
 
         target_include_directories(negentropic_core_wasm PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Negentropic Core - Physical Parameters",
+  "description": "Default parameter configurations for atmospheric, hydrological, and soil solvers",
+  "version": "0.1.0",
+
+  "biotic_pump": {
+    "description": "Biotic Pump atmospheric solver parameters (ATMv1)",
+    "scientific_basis": "Makarieva & Gorshkov (2007-2023), condensation-induced atmospheric dynamics",
+
+    "circulation": {
+      "h_gamma": {
+        "value": 1500.0,
+        "units": "m",
+        "range": [800, 2500],
+        "description": "Effective depth of lower-tropospheric moist inflow/condensation return flow",
+        "sources": ["[1.2] Makarieva & Gorshkov (2010)", "[5.1] Makarieva et al. (2022)"]
+      },
+
+      "h_c": {
+        "value": 2000.0,
+        "units": "m",
+        "range": [1500, 2500],
+        "description": "Water vapor scale height (characteristic vertical decay distance)",
+        "sources": ["[5.1] Makarieva et al. (2022)", "[5.2] Makarieva et al. (2022)"]
+      },
+
+      "L": {
+        "description": "Inland acceptor length scale (computed from forest continuity)",
+        "units": "m",
+        "range": [100000, 2000000],
+        "non_forest_value": 600000,
+        "forest_value": 1500000,
+        "note": "Forests achieve O(10^6) m whereas non-forest declines at O(6×10^5) m",
+        "sources": ["[2.1] Makarieva & Gorshkov (2007)", "[3.1] Makarieva et al. (2009)"]
+      }
+    },
+
+    "dynamics": {
+      "c_d": {
+        "value": 0.001,
+        "units": "m^-1",
+        "range": [0.0001, 0.005],
+        "description": "Bulk drag coefficient over forest canopy (depth-averaged)",
+        "sources": ["[4.1] Katul et al. (2012)"]
+      },
+
+      "f": {
+        "value": 5.0e-5,
+        "units": "s^-1",
+        "description": "Coriolis parameter (f = 2Ω sin(lat)), typical for mid-latitudes ~20°",
+        "latitude_dependence": "f = 1.45e-4 * sin(lat_radians)"
+      },
+
+      "rho": {
+        "value": 1.2,
+        "units": "kg/m^3",
+        "description": "Air density at sea level (standard atmosphere)"
+      }
+    },
+
+    "vegetation": {
+      "LAI": {
+        "value": 5.0,
+        "units": "-",
+        "range": [3, 7],
+        "description": "Leaf Area Index enabling high ET and mixing (productive forest)",
+        "threshold": 3.5,
+        "note": "LAI > 3-4 required for sustained biotic pump",
+        "sources": ["[4.1] Katul et al. (2012)"]
+      },
+
+      "H_c": {
+        "value": 30.0,
+        "units": "m",
+        "range": [15, 50],
+        "description": "Canopy height influencing aerodynamic roughness",
+        "sources": ["[4.1] Katul et al. (2012)"]
+      },
+
+      "ET": {
+        "value": 4.0,
+        "units": "mm/day",
+        "range": [1, 6],
+        "description": "Forest evapotranspiration climatology",
+        "sources": ["[4.1] Katul et al. (2012)"]
+      },
+
+      "phi_f": {
+        "value": 0.7,
+        "units": "-",
+        "range": [0, 1],
+        "description": "Forest continuity fraction along fetch (1 = continuous, 0 = non-forested)",
+        "threshold": 0.65,
+        "note": "Critical threshold ~0.6-0.7; requires contiguous widths ~200-300 km",
+        "sources": ["[2.1] Makarieva & Gorshkov (2007)"]
+      }
+    },
+
+    "thermodynamics": {
+      "r_T": {
+        "value": 0.622,
+        "units": "-",
+        "description": "Ratio of molecular weights (water vapor / dry air) = 18.016/28.966"
+      },
+
+      "RH_0": {
+        "value": 0.7,
+        "units": "-",
+        "range": [0.5, 0.9],
+        "description": "Background relative humidity (spatially averaged)"
+      },
+
+      "k_E": {
+        "value": 0.05,
+        "units": "day/mm",
+        "range": [0.01, 0.1],
+        "description": "ET enhancement coefficient for vapor pressure increase",
+        "note": "Relates surface ET flux to atmospheric humidity increase",
+        "sources": ["[1.2] Makarieva & Gorshkov (2010)"]
+      },
+
+      "alpha": {
+        "value": 0.8,
+        "units": "-",
+        "range": [0.6, 1.0],
+        "description": "Fraction of condensation power realized as dynamic work",
+        "note": "High sensitivity: enters as γ_d^-1 ~ 10^2 in pressure-gradient formulation",
+        "warning": "Small changes (±0.1) produce disproportionately large wind/pressure changes",
+        "sources": ["[5.1] Makarieva et al. (2022)"]
+      },
+
+      "T_ref": {
+        "value": 298.0,
+        "units": "K",
+        "description": "Reference temperature (25°C) for typical tropical/subtropical forest"
+      }
+    },
+
+    "numerical": {
+      "dx": {
+        "value": 50000.0,
+        "units": "m",
+        "description": "Horizontal grid spacing (50 km for mesoscale applications)",
+        "typical_range": [10000, 100000]
+      },
+
+      "dt": {
+        "value": 3600.0,
+        "units": "s",
+        "description": "Timestep (1 hour for explicit momentum integration)",
+        "note": "Semi-implicit drag removes CFL restriction"
+      }
+    },
+
+    "thresholds_and_tipping": {
+      "description": "Critical thresholds for regime transitions (falsifiable predictions)",
+
+      "minimum_canopy_density": {
+        "LAI_min": 3.5,
+        "phi_f_min": 0.6,
+        "contiguous_width_km": 250,
+        "description": "Minimum forest density and continuity for sustained inland moisture import",
+        "sources": ["[2.1] Makarieva & Gorshkov (2007)", "[3.1] Makarieva et al. (2009)"]
+      },
+
+      "regime_dichotomy": {
+        "description": "Dry vs wet regime switch in ET-precipitation coupling",
+        "dry_regime": {
+          "description": "Increased E raises recycling (P↑) but reduces import (C↓), lowering runoff",
+          "typical_W": "< 20 kg/m^2"
+        },
+        "wet_regime": {
+          "description": "Increased E enhances both P and C (import), raising water yield",
+          "typical_W": "> 40 kg/m^2"
+        },
+        "note": "Observable switch offers sharp, testable threshold in model behavior",
+        "sources": ["[6.1] Makarieva et al. (2023)"]
+      },
+
+      "precipitation_decay": {
+        "non_forest_e_folding_km": 600,
+        "forest_e_folding_km": "> 1000",
+        "description": "Empirical precipitation-distance scaling distinguishing forests from non-forested interiors",
+        "sources": ["[3.1] Makarieva et al. (2009)"]
+      }
+    }
+  },
+
+  "references": {
+    "[1.1]": {
+      "citation": "Makarieva, A.M., Gorshkov, V.G. (2010). The Biotic Pump: Condensation, atmospheric dynamics and climate. International Journal of Water.",
+      "doi": "10.1504/ijw.2010.038729",
+      "key_contribution": "CIAD foundation, condensation power, ET links"
+    },
+    "[1.2]": {
+      "citation": "Makarieva, A.M., Gorshkov, V.G. (2010). The Biotic Pump: Condensation, atmospheric dynamics and climate. International Journal of Water.",
+      "doi": "10.1504/ijw.2010.038729",
+      "key_contribution": "Continuity and donor-acceptor inland scalings"
+    },
+    "[2.1]": {
+      "citation": "Makarieva, A.M., Gorshkov, V.G. (2007). Biotic pump of atmospheric moisture as driver of the hydrological cycle on land. Hydrology and Earth System Sciences.",
+      "doi": "10.5194/hess-11-1013-2007",
+      "key_contribution": "Forest vs non-forest precipitation-distance and threshold implications"
+    },
+    "[3.1]": {
+      "citation": "Makarieva, A.M., Gorshkov, V.G., Li, B.-L. (2009). Precipitation on land versus distance from the ocean: Evidence for a forest pump of atmospheric moisture. Ecological Complexity.",
+      "doi": "10.1016/j.ecocom.2008.11.004",
+      "key_contribution": "Empirical e-folding lengths (600 km non-forest vs >1000 km forest)"
+    },
+    "[4.1]": {
+      "citation": "Katul, G.G., Oren, R., Manzoni, S., Higgins, C., Parlange, M.B. (2012). Evapotranspiration: A process driving mass transport and energy exchange in the soil-plant-atmosphere-climate system. Reviews of Geophysics.",
+      "doi": "10.1029/2011rg000366",
+      "key_contribution": "Boundary-layer canopy-breeze and mesoscale ET-pressure coupling"
+    },
+    "[5.1]": {
+      "citation": "Makarieva, A.M., Nefiodov, A.V., Nobre, A.D., Sheil, D., Nobre, P., Pokorný, J., Hesslerová, P., Li, B.-L. (2022). Vegetation impact on atmospheric moisture transport under increasing land-ocean temperature contrasts. Heliyon.",
+      "doi": "10.48550/arxiv.2112.12880",
+      "key_contribution": "Condensation-induced power density, sensitivity to alpha parameter"
+    },
+    "[5.2]": {
+      "citation": "Makarieva, A.M., et al. (2022). [Same as 5.1]",
+      "key_contribution": "Vertical scale separation (h vs h_c), non-equilibrium vapor gradients"
+    },
+    "[6.1]": {
+      "citation": "Makarieva, A.M., Nefiodov, A.V., Nobre, A.D., Baudena, M., Bardi, U., Sheil, D., Saleska, S.R., Molina, R.D., Rammig, A. (2023). The role of ecosystem transpiration in creating alternate moisture regimes by influencing atmospheric moisture convergence. Global Change Biology.",
+      "doi": "10.1111/gcb.16644",
+      "key_contribution": "Moisture budget framework (E→W→P→C) and regime dichotomy"
+    }
+  },
+
+  "validation": {
+    "datasets": {
+      "forest_transects": [
+        "Amazon Basin (Manaus to Andes)",
+        "Congo Basin (Atlantic to Great Rift)",
+        "Siberian taiga (Arctic Ocean to Central Asia)"
+      ],
+      "non_forest_transects": [
+        "Sahel (Atlantic to Chad)",
+        "Australian interior (coast to Outback)",
+        "Central Asia (Caspian to Gobi)"
+      ]
+    },
+    "metrics": {
+      "precipitation_distance_slope": "ln P(x) = a + bx, extract e-folding length 1/|b|",
+      "moisture_convergence": "Verify C + E - P ≈ dW/dt from reanalysis",
+      "wind_ET_correlation": "Test whether u rises with E in wet-season, high-W conditions"
+    }
+  },
+
+  "implementation_notes": {
+    "performance": {
+      "lookup_table_size": 256,
+      "temperature_range": "243-333 K (-30°C to +60°C)",
+      "drag_kernel": "sqrt-free semi-implicit (error < 12%, ~3× speedup)",
+      "target_ns_per_cell": 10,
+      "simd_ready": "WASM SIMD128 placeholders included"
+    },
+    "thread_safety": "Pure function, stateless (except static LUT), can parallelize",
+    "mass_conservation": "Continuity uhγ = wL implicit in pressure-gradient formulation"
+  }
+}

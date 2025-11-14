@@ -68,6 +68,7 @@ set(CORE_SOURCES
     src/core/neg_error.c
     src/core/rng.c
     src/api/negentropic.c
+    src/solvers/atmosphere_biotic.c
     embedded/se3_math.c
     embedded/trig_tables.c
     embedded/handoff.c
@@ -82,6 +83,7 @@ set(CORE_HEADERS
     src/core/include/se3_types.h
     src/core/include/platform.h
     src/api/negentropic.h
+    src/solvers/atmosphere_biotic.h
     embedded/se3_edge.h
     embedded/t_bsp.h
 )
@@ -168,6 +170,21 @@ if(BUILD_TESTS)
         endif()
 
         add_test(NAME FixedPointTest COMMAND fixed_point_test)
+    endif()
+
+    # Biotic pump solver test (ATMv1)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_biotic_pump.c")
+        add_executable(test_biotic_pump
+            tests/test_biotic_pump.c
+            src/solvers/atmosphere_biotic.c
+        )
+        target_include_directories(test_biotic_pump PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+        if(UNIX AND NOT APPLE)
+            target_link_libraries(test_biotic_pump PRIVATE m)
+        endif()
+
+        add_test(NAME BioticPumpTest COMMAND test_biotic_pump)
     endif()
 endif()
 

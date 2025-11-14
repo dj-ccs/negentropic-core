@@ -52,3 +52,4 @@ Thumbs.db
 # Test binaries
 tests/fixed_point_test
 tests/t_bsp_test
+tests/test_biotic_pump

@@ -18,10 +18,11 @@ SRC_TRIG = $(EMBEDDED_DIR)/trig_tables.c
 # Test executables
 TEST_EXEC_MATH = fixed_point_test
 TEST_EXEC_TBSP = t_bsp_test
+TEST_EXEC_BIOTIC = test_biotic_pump
 
-.PHONY: all test test-math test-tbsp clean
+.PHONY: all test test-math test-tbsp test-biotic clean
 
-all: $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP)
+all: $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP) $(TEST_EXEC_BIOTIC)
 
 $(TEST_EXEC_MATH): fixed_point_accuracy_test.c $(SRC_MATH) $(SRC_TRIG)
 	@echo "Building fixed-point accuracy tests..."
@@ -33,7 +34,12 @@ $(TEST_EXEC_TBSP): t_bsp_test.c $(SRC_MATH) $(SRC_TRIG) $(EMBEDDED_DIR)/t_bsp.c 
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "✓ Build complete: $(TEST_EXEC_TBSP)"
 
-test: test-math test-tbsp
+$(TEST_EXEC_BIOTIC): test_biotic_pump.c ../src/solvers/atmosphere_biotic.c
+	@echo "Building Biotic Pump solver tests..."
+	$(CC) $(CFLAGS) -I.. -o $@ $^ $(LDFLAGS)
+	@echo "✓ Build complete: $(TEST_EXEC_BIOTIC)"
+
+test: test-math test-tbsp test-biotic
 
 test-math: $(TEST_EXEC_MATH)
 	@echo ""
@@ -47,8 +53,14 @@ test-tbsp: $(TEST_EXEC_TBSP)
 	@echo ""
 	./$(TEST_EXEC_TBSP)
 
+test-biotic: $(TEST_EXEC_BIOTIC)
+	@echo ""
+	@echo "Running Biotic Pump solver tests..."
+	@echo ""
+	./$(TEST_EXEC_BIOTIC)
+
 clean:
-	rm -f $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP)
+	rm -f $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP) $(TEST_EXEC_BIOTIC)
 	@echo "✓ Cleaned build artifacts"
 
 # Help target

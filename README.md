@@ -1,6 +1,6 @@
 # negentropic-core
 
-[![License: MIT OR GPL-3.0](https://img.shields.io/badge/License-MIT%20OR%20GPL--3.0-blue.svg)](LICENSE)
+[![License: Research FREE / Commercial 1%](https://img.shields.io/badge/License-Research%20FREE%20%2F%20Commercial%201%25-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v0.3.0--alpha-orange)](https://github.com/dj-ccs/negentropic-core/releases)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen)]()
 [![Tests](https://img.shields.io/badge/tests-90%25%20passing-success)]()
@@ -557,11 +557,22 @@ We welcome contributions! Please:
 
 ## 📄 License
 
-**Dual-licensed** under your choice of:
-- [MIT License](LICENSE) - Permissive, allows proprietary use
-- [GNU GPL v3.0](LICENSE) - Copyleft, ensures derivatives remain open
+**Dual-licensed** to encourage open research while sustaining R&D:
 
-Choose the license that best fits your use case. See [LICENSE](LICENSE) for full text and guidance.
+- **Research & Nonprofit: FREE** ([Section A](LICENSE))
+  - Academic research and publications
+  - Educational and nonprofit use
+  - Open-source GPL-compatible projects
+
+- **Commercial: 1% Revenue Share** ([Section B](LICENSE))
+  - Agronomy and consulting services
+  - Proprietary agricultural software
+  - Carbon credit assessment
+  - **Example**: $500/hectare service → $5/hectare license fee
+
+**Why this model?** Scientific knowledge should be freely accessible for research and public good, while commercial applications contribute proportionally to ongoing R&D, maintenance, and community support.
+
+See [LICENSE](LICENSE) for complete terms, payment structure, and commercial license application process.
 
 ---
 

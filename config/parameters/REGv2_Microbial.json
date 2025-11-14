@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "REGv2 Microbial Priming & Condenser Landscapes Parameters",
+  "description": "Parameter set for REGv2 solver implementing microbial-mediated SOM accumulation, fungal priming, condensation physics, hydraulic lift, and biological precipitation feedbacks",
+  "version": "0.1.0",
+  "scientific_basis": "Edison Research Specification - Microbial Priming & Atmospheric Interface Dynamics",
+
+  "SOM_module": {
+    "P_max": {
+      "value": 2.5,
+      "units": "g C m^-2 d^-1",
+      "range": [0.1, 5.0],
+      "confidence": "medium",
+      "description": "Maximum microbial SOM production rate",
+      "citations": ["[1.1]"]
+    },
+    "K_C": {
+      "value": 20.0,
+      "units": "g C m^-2",
+      "range": [5.0, 50.0],
+      "confidence": "low",
+      "description": "Half-saturation constant for labile carbon (Monod kinetics)",
+      "citations": ["[1.1]"]
+    },
+    "K_theta": {
+      "value": 0.10,
+      "units": "m^3 m^-3",
+      "range": [0.05, 0.20],
+      "confidence": "medium",
+      "description": "Half-saturation constant for soil moisture",
+      "citations": ["[1.1]"]
+    },
+    "alpha_T": {
+      "value": 0.07,
+      "units": "°C^-1",
+      "range": [0.05, 0.10],
+      "confidence": "medium",
+      "description": "Temperature sensitivity coefficient (Arrhenius form)",
+      "citations": ["[1.1]"]
+    },
+    "T0": {
+      "value": 20.0,
+      "units": "°C",
+      "description": "Reference temperature for microbial activity",
+      "citations": ["[1.1]"]
+    },
+    "beta_N": {
+      "value": 0.25,
+      "units": "m^2 d g^-1",
+      "range": [0.0, 0.5],
+      "confidence": "low",
+      "description": "Nitrogen fixation enhancement coefficient",
+      "citations": ["[1.1]"]
+    },
+    "beta_phi": {
+      "value": 0.3,
+      "units": "-",
+      "range": [0.0, 0.6],
+      "confidence": "medium",
+      "description": "Aggregate stability enhancement coefficient",
+      "citations": ["[6.1]", "[8.1]"]
+    },
+    "R_base": {
+      "value": 0.3,
+      "units": "g C m^-2 d^-1",
+      "range": [0.05, 1.0],
+      "confidence": "medium",
+      "description": "Base respiration rate at reference temperature",
+      "citations": ["[1.1]"]
+    },
+    "Q10": {
+      "value": 2.0,
+      "units": "-",
+      "range": [1.5, 2.5],
+      "confidence": "medium",
+      "description": "Respiration temperature sensitivity (Q10 formulation)",
+      "citations": ["[1.1]"]
+    },
+    "K_theta_r": {
+      "value": 0.08,
+      "units": "m^3 m^-3",
+      "description": "Half-saturation constant for respiration moisture dependence",
+      "citations": ["[1.1]"]
+    }
+  },
+
+  "F_B_multiplier_table": {
+    "description": "Fungal:Bacterial ratio priming multiplier - 8 hard anchors for nonlinear SOM accumulation boost",
+    "entries": [
+      {"FB_ratio": 0.10, "multiplier": 1.0, "note": "Baseline bacterial dominance"},
+      {"FB_ratio": 0.25, "multiplier": 1.2, "note": "Small fungal enrichment"},
+      {"FB_ratio": 0.50, "multiplier": 1.6, "note": "Moderate fungal signal"},
+      {"FB_ratio": 1.00, "multiplier": 2.5, "note": "Critical pivot - Johnson-Su anchor"},
+      {"FB_ratio": 1.50, "multiplier": 3.5, "note": "Rising fungal dominance"},
+      {"FB_ratio": 2.00, "multiplier": 4.5, "note": "Strong fungal dominance"},
+      {"FB_ratio": 3.00, "multiplier": 6.0, "note": "Nonlinear acceleration threshold"},
+      {"FB_ratio": 1000.0, "multiplier": 8.0, "note": "Extreme compost cases - Johnson-Su cap"}
+    ],
+    "confidence": "high for anchors (0.1→1.0x, 1.0→2.5x, >3.0→6-8x); medium otherwise",
+    "citations": ["[1.1]", "[1.2]"],
+    "implementation": "exact lookup with nearest-neighbor for intermediate values"
+  },
+
+  "Aggregation_Conductivity": {
+    "m_agg": {
+      "value": 0.3,
+      "units": "-",
+      "range": [0.0, 0.6],
+      "confidence": "medium",
+      "description": "Aggregation multiplier strength (up to +60% K in plant-available range)",
+      "citations": ["[6.1]", "[8.1]"]
+    },
+    "Phi_c": {
+      "value": 0.5,
+      "units": "-",
+      "range": [0.4, 0.6],
+      "confidence": "medium",
+      "description": "Critical aggregate stability threshold for connectivity jump",
+      "citations": ["[1.2]"]
+    },
+    "gamma": {
+      "value": 10.0,
+      "units": "-",
+      "range": [5.0, 15.0],
+      "confidence": "low",
+      "description": "Sigmoid steepness for aggregate-connectivity threshold",
+      "citations": ["[1.2]"]
+    },
+    "alpha_myco": {
+      "value": 0.3,
+      "units": "-",
+      "range": [0.2, 0.4],
+      "confidence": "medium",
+      "description": "Mycorrhizal hyphal conductivity enhancement (+20-40% in plant-available range)",
+      "citations": ["[8.1]"]
+    },
+    "theta_rep": {
+      "value": 0.05,
+      "units": "m^3 m^-3",
+      "range": [0.02, 0.08],
+      "confidence": "medium",
+      "description": "Moisture threshold below which hydrophobicity reduces infiltration",
+      "citations": ["[1.2]", "[2.1]"]
+    },
+    "eta": {
+      "value": 50.0,
+      "units": "-",
+      "range": [30.0, 80.0],
+      "confidence": "low",
+      "description": "Sigmoid steepness for moisture-dependent repellency",
+      "citations": ["[1.2]"]
+    },
+    "C_thr": {
+      "value": 0.5,
+      "units": "g C m^-2 d^-1",
+      "description": "Carbon supply threshold for functional mycorrhizal symbiosis",
+      "citations": ["[8.1]"]
+    }
+  },
+
+  "Condensation_Fog": {
+    "Lambda": {
+      "value": 1.0e-4,
+      "units": "m s^-1",
+      "range": [1.0e-5, 5.0e-4],
+      "confidence": "low",
+      "description": "Vapor transfer coefficient for condensation/fog impaction",
+      "citations": ["[7.1]", "[3.1]"]
+    },
+    "rho_w": {
+      "value": 1000.0,
+      "units": "kg m^-3",
+      "description": "Water density for flux conversion"
+    },
+    "beta_rock": {
+      "value": 1.2,
+      "units": "-",
+      "range": [0.5, 2.0],
+      "confidence": "medium",
+      "description": "Rock-mulch thermal-mass multiplier coefficient",
+      "citations": ["[5.1]", "[7.1]"]
+    },
+    "beta_veg": {
+      "value": 0.05,
+      "units": "-",
+      "range": [0.02, 0.10],
+      "confidence": "low",
+      "description": "Vegetation LAI enhancement coefficient for condensation",
+      "citations": ["[7.1]"]
+    },
+    "condenser_bonus": {
+      "value": 0.3,
+      "units": "mm night^-1 per neighbor",
+      "range": [0.1, 0.5],
+      "confidence": "medium",
+      "description": "Neighborhood condenser bonus (rock mulch, vegetation patch)",
+      "citations": ["[5.1]", "[7.1]"]
+    },
+    "typical_yields": {
+      "min": 0.1,
+      "max": 5.0,
+      "units": "mm d^-1",
+      "description": "Typical field fog interception yields for calibration",
+      "citations": ["[7.1]"]
+    }
+  },
+
+  "Biological_Rain_Bonus": {
+    "delta_min": {
+      "value": 0.05,
+      "units": "probability",
+      "range": [0.05, 0.08],
+      "confidence": "medium",
+      "description": "Minimum precipitation probability boost from biological CCN/INP",
+      "citations": ["[9.1]", "[10.1]"]
+    },
+    "delta_max": {
+      "value": 0.12,
+      "units": "probability",
+      "range": [0.12, 0.15],
+      "confidence": "medium",
+      "description": "Maximum precipitation probability boost from biological CCN/INP",
+      "citations": ["[9.1]", "[10.1]"]
+    },
+    "veg_threshold": {
+      "value": 0.6,
+      "units": "fraction",
+      "description": "Minimum vegetation cover required for biological rain bonus",
+      "citations": ["[9.1]", "[10.1]"]
+    },
+    "FB_threshold": {
+      "value": 2.0,
+      "units": "-",
+      "description": "Minimum F:B ratio required for biological rain bonus (fungal-dominated)",
+      "citations": ["[9.1]", "[10.1]"]
+    },
+    "FB_saturation": {
+      "value": 3.0,
+      "units": "-",
+      "description": "F:B ratio at which biological rain bonus saturates",
+      "citations": ["[9.1]", "[10.1]"]
+    }
+  },
+
+  "Hydraulic_Lift": {
+    "k_root": {
+      "value": 1.0e-6,
+      "units": "m s^-1",
+      "range": [1.0e-8, 5.0e-6],
+      "confidence": "medium",
+      "description": "Root conductance parameter (scaled per cell)",
+      "citations": ["[4.1]", "[4.2]", "[11.1]"]
+    },
+    "H": {
+      "value": 1.5,
+      "units": "m",
+      "range": [0.3, 3.0],
+      "confidence": "medium",
+      "description": "Effective rooting depth for hydraulic redistribution",
+      "citations": ["[4.1]"]
+    },
+    "Q_lift_min": {
+      "value": 0.1,
+      "units": "mm night^-1",
+      "description": "Lower bound for nightly hydraulic lift (calibration check)",
+      "citations": ["[4.1]", "[4.2]"]
+    },
+    "Q_lift_max": {
+      "value": 1.3,
+      "units": "mm night^-1",
+      "description": "Upper bound for nightly hydraulic lift (calibration check)",
+      "citations": ["[4.1]", "[4.2]", "[11.1]"]
+    },
+    "night_gate_active": {
+      "value": true,
+      "description": "Enforce hydraulic lift only during nighttime hours"
+    }
+  },
+
+  "Swale_Microcatchment": {
+    "A_catch": {
+      "value": 3.0,
+      "units": "-",
+      "description": "Catchment area multiplier for crescent swale",
+      "citations": ["[2.2]"]
+    },
+    "depress_storage": {
+      "value": 0.005,
+      "units": "m",
+      "description": "Depression storage depth before ponding/infiltration",
+      "citations": ["[2.2]"]
+    },
+    "L_infiltration": {
+      "value": 0.1,
+      "units": "m",
+      "description": "Characteristic length scale for swale infiltration gradient",
+      "citations": ["[2.2]"]
+    }
+  },
+
+  "implementation": {
+    "performance_target": {
+      "max_cycles_per_cell": 50,
+      "description": "Maximum computational cycles per cell (Grok verified)",
+      "status": "CONFIRMED - All pseudocode <50 cycles/cell"
+    },
+    "integration_notes": {
+      "REGv1_coupling": "Replace simple dSOM/dt with P_micro() - D_resp() in regeneration_cascade.c",
+      "HYD_RLv1_coupling": "Apply K_unsat() to conductivity; add C_cond() and Q_lift() as water sources"
+    }
+  },
+
+  "validation_targets": {
+    "T1_dawn_dew_pulse": {
+      "description": "Dawn dew → microbial respiration pulse",
+      "setup": "θ near field capacity, RH≈100%, ΔT_night>0",
+      "expect": "C_cond>0 at dawn, transient D_resp increase",
+      "citations": ["[5.1]", "[7.1]"]
+    },
+    "T2_infiltration_jump": {
+      "description": "Infiltration jump after F:B crosses 1.0",
+      "setup": "F:B rises 0.5→1.0, Φ_agg increases",
+      "expect": "P_Fb jumps 1.6x→2.5x, K_unsat increases nonlinearly",
+      "citations": ["[1.1]", "[8.1]"]
+    },
+    "T3_texture_flip": {
+      "description": "Texture-dependent AMF effects (loam vs sand)",
+      "setup": "Apply AMF to loam and sand substrates",
+      "expect": "Loam: ↑K, ↑drainage; Sand: ↑θ retention in PAW range",
+      "citations": ["[2.1]", "[8.1]"]
+    },
+    "T4_night_HL_bounds": {
+      "description": "Night-only hydraulic lift within bounds",
+      "setup": "Δθ>0 at night, integrate Q_lift",
+      "expect": "Nightly total: 0.1-1.3 mm H2O night^-1; day χ_night=0",
+      "citations": ["[4.1]", "[4.2]", "[11.1]"]
+    },
+    "T5_fog_yield": {
+      "description": "Fog interception yield calibration",
+      "setup": "LWC=0.2-3 g/m³, u=4 m/s, D≈30μm, shade=0.55",
+      "expect": "Predicted yields match observed 0.1-5 L/m²/d range",
+      "citations": ["[3.1]", "[7.1]"]
+    },
+    "T6_bio_rain_trigger": {
+      "description": "Biological rain bonus trigger",
+      "setup": "Veg cover=0.7, F:B=2.5",
+      "expect": "+7-12% precipitation probability; increased wet events",
+      "citations": ["[9.1]", "[10.1]"]
+    },
+    "T7_swale_condenser": {
+      "description": "Crescent swale with rock mulch neighbors",
+      "setup": "n_cond_neighbors=3, ΔT_night=0.8",
+      "expect": "+0.24-1.2 mm/night added; ↑θ_shallow, faster establishment",
+      "citations": ["[5.1]", "[7.1]"]
+    },
+    "PRIMARY_johnson_su_compost": {
+      "description": "Explosive nonlinear recovery - Johnson-Su compost test (PRIMARY VALIDATION)",
+      "setup": "Degraded soil + high F:B inoculation, 2-year simulation",
+      "expect": "F:B↑, SOM skyrockets, K_eff jumps significantly (explosive recovery)",
+      "note": "This is the canonical test for the innate desire of land to heal"
+    }
+  },
+
+  "references": {
+    "[1.1]": "Querejeta 2017 - Soil Water Retention and Availability as Influenced by Mycorrhizal Symbiosis",
+    "[1.2]": "Querejeta 2017 - Mechanistic links and threshold behavior (water repellency, hydrophobicity)",
+    "[2.1]": "Pauwels et al. 2023 - AMF alters soil water retention and hydraulic conductivity (texture-specific)",
+    "[2.2]": "Pauwels et al. 2023 - Biological replicates and mesh effects on K and water partitioning",
+    "[3.1]": "Gandhidasan et al. 2018 - Fog water harvesting modeling and analysis",
+    "[4.1]": "Neumann & Cardon 2012 - Magnitude of hydraulic redistribution (synthesis)",
+    "[4.2]": "Neumann & Cardon 2012 - Empirical ranges and modeling studies",
+    "[5.1]": "Katata et al. 2010 - Fog deposition on vegetation for atmosphere-land interactions",
+    "[6.1]": "Rossi et al. 2012 - Exopolysaccharides enhancing hydraulic conductivity of biological soil crusts",
+    "[7.1]": "Ritter et al. 2008 - Fog water collection in subtropical elfin laurel forest",
+    "[8.1]": "Bitterlich et al. 2018 - Arbuscular Mycorrhiza improves substrate hydraulic conductivity",
+    "[9.1]": "Morris et al. 2014 - Bioprecipitation feedback cycle",
+    "[10.1]": "Joyce et al. 2019 - Biological ice-nucleating particles in subtropical precipitation",
+    "[11.1]": "Caldwell et al. 1998 - Hydraulic lift: consequences of water efflux from roots"
+  }
+}

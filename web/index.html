@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin">
+  <title>Negentropic-Core GEO-v1 | Global Earth Simulation</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+    }
+
+    #cesium-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #overlay-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    #control-panel {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.85);
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      min-width: 300px;
+      max-width: 400px;
+      backdrop-filter: blur(10px);
+      z-index: 1000;
+      font-size: 14px;
+    }
+
+    #control-panel h2 {
+      margin-bottom: 15px;
+      font-size: 18px;
+      color: #4CAF50;
+      border-bottom: 1px solid rgba(76, 175, 80, 0.3);
+      padding-bottom: 8px;
+    }
+
+    .status-item {
+      margin: 10px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-label {
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .status-value {
+      color: #4CAF50;
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+    }
+
+    .button-group {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      flex: 1;
+      padding: 10px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+
+    .info-text {
+      margin-top: 15px;
+      padding: 10px;
+      background: rgba(76, 175, 80, 0.1);
+      border-left: 3px solid #4CAF50;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #loading-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      transition: opacity 0.5s;
+    }
+
+    #loading-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .spinner {
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(76, 175, 80, 0.2);
+      border-top-color: #4CAF50;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .loading-status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="spinner"></div>
+    <div class="loading-text">Initializing Negentropic-Core GEO-v1</div>
+    <div class="loading-status" id="loading-status">Loading WASM modules...</div>
+  </div>
+
+  <!-- Cesium Globe Container -->
+  <div id="cesium-container"></div>
+
+  <!-- Deck.gl Overlay Canvas (rendered in worker) -->
+  <canvas id="overlay-canvas"></canvas>
+
+  <!-- Control Panel -->
+  <div id="control-panel">
+    <h2>Earth Simulation Control</h2>
+
+    <div class="status-item">
+      <span class="status-label">System Status:</span>
+      <span class="status-value" id="system-status">Initializing...</span>
+    </div>
+
+    <div class="status-item">
+      <span class="status-label">Core FPS:</span>
+      <span class="status-value" id="core-fps">0 Hz</span>
+    </div>
+
+    <div class="status-item">
+      <span class="status-label">Render FPS:</span>
+      <span class="status-value" id="render-fps">0 FPS</span>
+    </div>
+
+    <div class="status-item">
+      <span class="status-label">Active Region:</span>
+      <span class="status-value" id="active-region">None</span>
+    </div>
+
+    <div class="button-group">
+      <button id="start-btn" disabled>Start Simulation</button>
+      <button id="pause-btn" disabled>Pause</button>
+    </div>
+
+    <div class="info-text">
+      <strong>Instructions:</strong><br>
+      1. Click anywhere on the globe to select a region<br>
+      2. Prithvi AI will initialize the landscape state<br>
+      3. Click "Start" to run the physics simulation<br>
+      4. Watch real-time moisture and SOM evolution
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

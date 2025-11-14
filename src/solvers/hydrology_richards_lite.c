@@ -427,6 +427,9 @@ void richards_lite_step(
     float rainfall,
     void* diagnostics
 ) {
+    /* Silence unused parameter warning (reserved for future mass balance tracking) */
+    (void)diagnostics;
+
     if (!g_lut_initialized) {
         fprintf(stderr, "ERROR: richards_lite_init() must be called first!\n");
         return;

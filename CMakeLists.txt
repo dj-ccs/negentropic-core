@@ -234,7 +234,7 @@ if(BUILD_WASM)
             -sMODULARIZE=1
             "-sEXPORT_NAME=createNegentropic"
             "-sEXPORTED_FUNCTIONS=[\"_malloc\",\"_free\",\"_neg_create\",\"_neg_step\",\"_neg_get_state_json\",\"_neg_get_state_binary\",\"_neg_get_state_binary_size\",\"_neg_get_state_hash\",\"_neg_reset_from_binary\",\"_neg_destroy\"]"
-            "-sEXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\"]"
+            "-sEXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"HEAPU8\",\"HEAP8\",\"HEAPU16\",\"HEAP16\",\"HEAPU32\",\"HEAP32\",\"HEAPF32\",\"HEAPF64\"]"
         )
 
         target_include_directories(negentropic_core_wasm PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -3,24 +3,147 @@
  * Runs deck.gl on OffscreenCanvas, reads SAB at 60 FPS
  */
 
-// Polyfills for deck.gl in worker context
-// deck.gl expects 'global' to be defined, but workers use 'self'
+// ============================================================================
+// Comprehensive Polyfills for deck.gl in Worker Context
+// ============================================================================
+// deck.gl is designed for main thread with DOM APIs. These polyfills make it
+// compatible with OffscreenCanvas in a worker environment.
+
+// 1. Global namespace - deck.gl expects 'global' to be defined
 // @ts-ignore
 if (typeof global === 'undefined') {
   // @ts-ignore
   self.global = self;
 }
 
-// deck.gl checks for HTMLCanvasElement, but workers only have OffscreenCanvas
-// Create a minimal polyfill so deck.gl accepts OffscreenCanvas
+// 2. HTMLCanvasElement - deck.gl checks for HTMLCanvasElement
+// We'll create a wrapper class that extends OffscreenCanvas with DOM-like methods
 // @ts-ignore
 if (typeof HTMLCanvasElement === 'undefined') {
   // @ts-ignore
-  self.HTMLCanvasElement = OffscreenCanvas;
+  self.HTMLCanvasElement = class HTMLCanvasElement extends OffscreenCanvas {
+    constructor(width: number, height: number) {
+      super(width, height);
+      // @ts-ignore
+      this.style = {};
+      // @ts-ignore
+      this.offsetWidth = width;
+      // @ts-ignore
+      this.offsetHeight = height;
+      // @ts-ignore
+      this.clientWidth = width;
+      // @ts-ignore
+      this.clientHeight = height;
+    }
+
+    // getBoundingClientRect is required by deck.gl's canvas context
+    getBoundingClientRect() {
+      return {
+        // @ts-ignore
+        left: 0,
+        top: 0,
+        // @ts-ignore
+        right: this.width,
+        // @ts-ignore
+        bottom: this.height,
+        // @ts-ignore
+        width: this.width,
+        // @ts-ignore
+        height: this.height,
+        x: 0,
+        y: 0,
+      };
+    }
+
+    // Event listener stubs
+    addEventListener() {}
+    removeEventListener() {}
+    dispatchEvent() { return true; }
+
+    // Style property stubs
+    setAttribute() {}
+    getAttribute() { return null; }
+    removeAttribute() {}
+  };
 }
 
-// deck.gl uses IntersectionObserver for viewport culling, but workers don't have DOM APIs
-// Create a minimal no-op polyfill
+// 3. Add missing methods directly to OffscreenCanvas prototype
+// This ensures existing OffscreenCanvas instances also have these methods
+if (typeof OffscreenCanvas !== 'undefined') {
+  // @ts-ignore
+  if (!OffscreenCanvas.prototype.getBoundingClientRect) {
+    // @ts-ignore
+    OffscreenCanvas.prototype.getBoundingClientRect = function() {
+      return {
+        left: 0,
+        top: 0,
+        right: this.width,
+        bottom: this.height,
+        width: this.width,
+        height: this.height,
+        x: 0,
+        y: 0,
+      };
+    };
+  }
+
+  // @ts-ignore
+  if (!OffscreenCanvas.prototype.addEventListener) {
+    // @ts-ignore
+    OffscreenCanvas.prototype.addEventListener = function() {};
+    // @ts-ignore
+    OffscreenCanvas.prototype.removeEventListener = function() {};
+    // @ts-ignore
+    OffscreenCanvas.prototype.dispatchEvent = function() { return true; };
+  }
+
+  // @ts-ignore
+  if (!OffscreenCanvas.prototype.style) {
+    // @ts-ignore - Define style as a getter that returns a style object
+    Object.defineProperty(OffscreenCanvas.prototype, 'style', {
+      get: function() {
+        // @ts-ignore
+        if (!this._styleProxy) {
+          // @ts-ignore
+          this._styleProxy = new Proxy({}, {
+            set: (target: any, prop: string, value: any) => {
+              target[prop] = value;
+              return true;
+            },
+            get: (target: any, prop: string) => {
+              return target[prop];
+            }
+          });
+        }
+        // @ts-ignore
+        return this._styleProxy;
+      }
+    });
+  }
+
+  // @ts-ignore - Add offset and client dimensions
+  Object.defineProperty(OffscreenCanvas.prototype, 'offsetWidth', {
+    // @ts-ignore
+    get: function() { return this.width; }
+  });
+  // @ts-ignore
+  Object.defineProperty(OffscreenCanvas.prototype, 'offsetHeight', {
+    // @ts-ignore
+    get: function() { return this.height; }
+  });
+  // @ts-ignore
+  Object.defineProperty(OffscreenCanvas.prototype, 'clientWidth', {
+    // @ts-ignore
+    get: function() { return this.width; }
+  });
+  // @ts-ignore
+  Object.defineProperty(OffscreenCanvas.prototype, 'clientHeight', {
+    // @ts-ignore
+    get: function() { return this.height; }
+  });
+}
+
+// 4. IntersectionObserver - deck.gl uses this for viewport culling
 // @ts-ignore
 if (typeof IntersectionObserver === 'undefined') {
   // @ts-ignore
@@ -32,29 +155,33 @@ if (typeof IntersectionObserver === 'undefined') {
   };
 }
 
-// deck.gl uses ResizeObserver for canvas resizing, but workers don't have DOM APIs
-// Create a minimal no-op polyfill
+// 5. ResizeObserver - deck.gl uses this for canvas resizing
 // @ts-ignore
 if (typeof ResizeObserver === 'undefined') {
   // @ts-ignore
   self.ResizeObserver = class ResizeObserver {
     constructor(callback: any) {
+      // @ts-ignore
       this.callback = callback;
+      // @ts-ignore
       this.observers = [];
     }
     observe(target: any) {
+      // @ts-ignore
       this.observers.push(target);
     }
     unobserve(target: any) {
+      // @ts-ignore
       this.observers = this.observers.filter((obs: any) => obs !== target);
     }
     disconnect() {
+      // @ts-ignore
       this.observers = [];
     }
   };
 }
 
-// deck.gl accesses window for devicePixelRatio and other browser APIs
+// 6. Window object - deck.gl accesses window for devicePixelRatio and dimensions
 // @ts-ignore
 if (typeof window === 'undefined') {
   // @ts-ignore
@@ -64,24 +191,84 @@ if (typeof window === 'undefined') {
     innerHeight: 600,
     addEventListener: () => {},
     removeEventListener: () => {},
-    matchMedia: () => ({ matches: false, addListener: () => {}, removeListener: () => {} }),
+    matchMedia: () => ({
+      matches: false,
+      media: '',
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => true,
+    }),
+    navigator: {
+      userAgent: 'Worker',
+      platform: 'Worker',
+    },
   };
 }
 
-// deck.gl tries to access document for DOM manipulation
+// 7. Document object - deck.gl tries to create elements for feature detection
 // @ts-ignore
 if (typeof document === 'undefined') {
   // @ts-ignore
   self.document = {
-    createElement: (tag: string) => ({
-      style: {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
+    createElement: (tag: string) => {
+      // Create a fake element with all the properties deck.gl might need
+      const fakeElement: any = {
+        style: new Proxy({}, {
+          set: (target: any, prop: string, value: any) => {
+            target[prop] = value;
+            return true;
+          },
+          get: (target: any, prop: string) => {
+            return target[prop];
+          }
+        }),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => true,
+        appendChild: () => {},
+        removeChild: () => {},
+        setAttribute: () => {},
+        getAttribute: () => null,
+        removeAttribute: () => {},
+        getBoundingClientRect: () => ({
+          left: 0, top: 0, right: 0, bottom: 0,
+          width: 0, height: 0, x: 0, y: 0
+        }),
+        tagName: tag.toUpperCase(),
+        nodeName: tag.toUpperCase(),
+        nodeType: 1,
+        offsetWidth: 0,
+        offsetHeight: 0,
+        clientWidth: 0,
+        clientHeight: 0,
+      };
+
+      // For canvas elements, add getContext
+      if (tag === 'canvas') {
+        fakeElement.getContext = () => null;
+        fakeElement.width = 0;
+        fakeElement.height = 0;
+      }
+
+      return fakeElement;
+    },
+    createElementNS: (ns: string, tag: string) => {
+      // @ts-ignore
+      return self.document.createElement(tag);
+    },
+    body: {
       appendChild: () => {},
       removeChild: () => {},
-    }),
+      style: {},
+    },
+    documentElement: {
+      style: {},
+    },
     addEventListener: () => {},
     removeEventListener: () => {},
+    dispatchEvent: () => true,
   };
 }
 
@@ -150,6 +337,54 @@ function initializeDeck(canvas: OffscreenCanvas) {
     throw new Error('Deck.gl modules not loaded');
   }
   try {
+    // Ensure canvas has all necessary properties for deck.gl
+    // @ts-ignore - Add style proxy if not already present
+    if (!canvas.style || typeof canvas.style !== 'object') {
+      // @ts-ignore
+      canvas.style = new Proxy({}, {
+        set: (target: any, prop: string, value: any) => {
+          target[prop] = value;
+          return true;
+        },
+        get: (target: any, prop: string) => {
+          return target[prop];
+        }
+      });
+    }
+
+    // Ensure getBoundingClientRect exists
+    // @ts-ignore
+    if (!canvas.getBoundingClientRect) {
+      // @ts-ignore
+      canvas.getBoundingClientRect = function() {
+        return {
+          left: 0,
+          top: 0,
+          // @ts-ignore
+          right: this.width,
+          // @ts-ignore
+          bottom: this.height,
+          // @ts-ignore
+          width: this.width,
+          // @ts-ignore
+          height: this.height,
+          x: 0,
+          y: 0,
+        };
+      };
+    }
+
+    // Add event listener stubs
+    // @ts-ignore
+    if (!canvas.addEventListener) {
+      // @ts-ignore
+      canvas.addEventListener = function() {};
+      // @ts-ignore
+      canvas.removeEventListener = function() {};
+      // @ts-ignore
+      canvas.dispatchEvent = function() { return true; };
+    }
+
     // Create a minimal WebGL context for deck.gl
     const gl = canvas.getContext('webgl2', {
       alpha: true,
@@ -159,6 +394,13 @@ function initializeDeck(canvas: OffscreenCanvas) {
 
     if (!gl) {
       throw new Error('Failed to get WebGL2 context');
+    }
+
+    // Wrap WebGL context to ensure canvas reference is accessible
+    // @ts-ignore
+    if (!gl.canvas) {
+      // @ts-ignore
+      gl.canvas = canvas;
     }
 
     // Initialize deck.gl with OffscreenCanvas
@@ -181,7 +423,7 @@ function initializeDeck(canvas: OffscreenCanvas) {
     console.log('✓ Deck.gl initialized in Render Worker');
 
   } catch (error) {
-    console.error('Failed to initialize deck.gl:', error);
+    console.error('deck: Failed to initialize deck.gl:', error);
     throw error;
   }
 }

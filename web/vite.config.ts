@@ -13,6 +13,14 @@ export default defineConfig({
         server.middlewares.use((_req, res, next) => {
           // Add CORP header to all resources to satisfy COEP require-corp
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+          // Also add COEP/COOP headers to ensure consistency
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+          res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+
+          // Allow credentials for same-origin requests
+          res.setHeader('Access-Control-Allow-Credentials', 'true');
+
           next();
         });
       },
@@ -24,6 +32,7 @@ export default defineConfig({
       // Required for SharedArrayBuffer support
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
     },
     fs: {
       // Allow serving files from parent directory (for WASM build)
@@ -35,6 +44,7 @@ export default defineConfig({
     headers: {
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
     },
   },
   resolve: {

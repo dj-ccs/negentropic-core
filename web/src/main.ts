@@ -148,12 +148,20 @@ class GeoV1Application {
     console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
 
     try {
-      // Create viewer with base layer disabled - we'll add imagery manually
+      // Create OpenStreetMap imagery provider BEFORE viewer creation
+      // This allows Cesium to initialize properly with our custom imagery
+      console.log('Creating OpenStreetMap imagery provider...');
+      const osmProvider = new OpenStreetMapImageryProvider({
+        url: 'https://a.tile.openstreetmap.org/'
+      });
+
+      // Create viewer with OSM as the base imagery layer from the start
+      // DO NOT set baseLayer: false - it prevents proper globe initialization
       this.viewer = new Viewer(container, {
         timeline: false,
         animation: false,
-        baseLayerPicker: false,
-        baseLayer: false, // CRITICAL: Disable base layer to add custom imagery
+        baseLayerPicker: false, // Disable picker UI, but keep base layer functionality
+        imageryProvider: osmProvider, // Use OSM as base layer
         geocoder: true,
         homeButton: true,
         sceneModePicker: true,
@@ -196,28 +204,19 @@ class GeoV1Application {
         console.warn('⚠ Globe is not enabled in the scene!');
       }
 
-      // CRITICAL FIX: Add OSM imagery provider asynchronously
-      console.log('Creating OpenStreetMap imagery provider...');
-      const osmProvider = new OpenStreetMapImageryProvider({
-        url: 'https://a.tile.openstreetmap.org/'
-      });
-
-      console.log('Adding OSM imagery layer...');
-      const imageryLayer = this.viewer.imageryLayers.addImageryProvider(osmProvider);
-
-      console.log('✓ OpenStreetMap imagery layer added');
-      console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
-
       // Debug: Check imagery layer state
-      console.log('[DEBUG] Imagery layer details:', {
-        show: imageryLayer.show,
-        alpha: imageryLayer.alpha,
-        brightness: imageryLayer.brightness,
-        contrast: imageryLayer.contrast,
-        ready: imageryLayer.ready,
-        providerReady: osmProvider.ready,
-        providerType: osmProvider.constructor?.name || 'Unknown',
-      });
+      if (this.viewer.imageryLayers.length > 0) {
+        const imageryLayer = this.viewer.imageryLayers.get(0);
+        console.log('[DEBUG] Imagery layer details:', {
+          show: imageryLayer.show,
+          alpha: imageryLayer.alpha,
+          brightness: imageryLayer.brightness,
+          contrast: imageryLayer.contrast,
+          ready: imageryLayer.ready,
+          providerReady: osmProvider.ready,
+          providerType: osmProvider.constructor?.name || 'Unknown',
+        });
+      }
 
       // Add error handler for imagery loading failures
       osmProvider.errorEvent.addEventListener((error: any) => {

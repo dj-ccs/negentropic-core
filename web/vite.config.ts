@@ -7,6 +7,16 @@ export default defineConfig({
   plugins: [
     cesium(),
     wasm(),
+    {
+      name: 'configure-response-headers',
+      configureServer: (server) => {
+        server.middlewares.use((_req, res, next) => {
+          // Add CORP header to all resources to satisfy COEP require-corp
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+          next();
+        });
+      },
+    },
   ],
   server: {
     port: 3000,

@@ -131,7 +131,15 @@ function initializeSimulation() {
     simHandle = wasmModule._neg_create(configPtr);
 
     if (simHandle === 0) {
-      throw new Error('neg_create returned NULL handle');
+      // Get detailed error message from WASM if available
+      let errorMsg = 'neg_create returned NULL handle';
+      if (wasmModule._neg_get_last_error && wasmModule.UTF8ToString) {
+        const errorPtr = wasmModule._neg_get_last_error();
+        if (errorPtr !== 0) {
+          errorMsg = wasmModule.UTF8ToString(errorPtr);
+        }
+      }
+      throw new Error(`Simulation creation failed: ${errorMsg}`);
     }
 
     console.log(`✓ Simulation initialized (handle: ${simHandle})`);
@@ -158,21 +166,22 @@ function simulationLoop() {
     const result = wasmModule._neg_step(simHandle, dt);
 
     if (result !== 0) {
-      console.error(`[Core] neg_step failed with code ${result}`);
-      console.error('[Core] Simulation handle:', simHandle);
-      console.error('[Core] Timestep:', dt);
-
-      // Try to get error message from WASM if available
-      if (wasmModule._neg_get_last_error) {
+      // Get detailed error message from WASM if available
+      let errorMsg = `neg_step failed with code ${result}`;
+      if (wasmModule._neg_get_last_error && wasmModule.UTF8ToString) {
         const errorPtr = wasmModule._neg_get_last_error();
-        if (errorPtr) {
-          const errorMsg = wasmModule.UTF8ToString(errorPtr);
-          console.error('[Core] WASM error:', errorMsg);
+        if (errorPtr !== 0) {
+          const detailedError = wasmModule.UTF8ToString(errorPtr);
+          errorMsg = `${errorMsg}: ${detailedError}`;
         }
       }
 
+      console.error(`[Core] ${errorMsg}`);
+      console.error('[Core] Simulation handle:', simHandle);
+      console.error('[Core] Timestep:', dt);
+
       isRunning = false;
-      postMessage({ type: 'error', payload: { code: result } });
+      postMessage({ type: 'error', payload: { code: result, message: errorMsg } });
       return;
     }
 

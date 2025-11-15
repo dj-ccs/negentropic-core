@@ -151,10 +151,12 @@ export interface WASMModule {
   _neg_get_state_binary_size(sim: number): number;
   _neg_get_state_hash(sim: number): bigint;
   _neg_reset_from_binary(sim: number, buffer: number, len: number): number;
+  _neg_get_last_error(): number; // Returns pointer to error string (or 0 if no error)
 
   // WASM exports
   HEAPU8: Uint8Array;
   HEAPF32: Float32Array;
+  UTF8ToString(ptr: number): string; // Convert C string pointer to JS string
   ccall: (name: string, returnType: string, argTypes: string[], args: any[]) => any;
   cwrap: (name: string, returnType: string, argTypes: string[]) => Function;
 }

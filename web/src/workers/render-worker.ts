@@ -32,6 +32,28 @@ if (typeof IntersectionObserver === 'undefined') {
   };
 }
 
+// deck.gl uses ResizeObserver for canvas resizing, but workers don't have DOM APIs
+// Create a minimal no-op polyfill
+// @ts-ignore
+if (typeof ResizeObserver === 'undefined') {
+  // @ts-ignore
+  self.ResizeObserver = class ResizeObserver {
+    constructor(callback: any) {
+      this.callback = callback;
+      this.observers = [];
+    }
+    observe(target: any) {
+      this.observers.push(target);
+    }
+    unobserve(target: any) {
+      this.observers = this.observers.filter((obs: any) => obs !== target);
+    }
+    disconnect() {
+      this.observers = [];
+    }
+  };
+}
+
 import type {
   RenderWorkerMessage,
   FieldOffsets,

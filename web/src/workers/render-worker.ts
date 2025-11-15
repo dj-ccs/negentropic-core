@@ -484,7 +484,20 @@ function initializeDeck(canvas: OffscreenCanvas) {
       // Disable all UI widgets - they're DOM-based and don't work in workers
       _typedArrayManagerProps: null,
       useDevicePixels: false, // Disable DPR scaling to avoid widget issues
+      // CRITICAL: Use transparent background so Cesium globe is visible underneath
+      parameters: {
+        blend: true,
+        blendFunc: [gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA],
+        depthTest: true,
+      },
+      _typedArrayManagerProps: {
+        overAlloc: 1,
+        poolSize: 0
+      },
     });
+
+    // Set transparent clear color so Cesium globe shows through
+    gl.clearColor(0, 0, 0, 0);  // Fully transparent black
 
     console.log('✓ Deck.gl initialized in Render Worker');
 

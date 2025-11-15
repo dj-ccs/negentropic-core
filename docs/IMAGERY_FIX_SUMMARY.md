@@ -119,6 +119,21 @@ Added comprehensive logging and auto-correction:
 5. **Ion vs OSM**: Cesium Ion imagery is more reliable with COEP/COOP headers than OSM
 6. **Force Render**: Use `requestRender()` instead of `render()` to force immediate frame update
 7. **Diagnostics Matter**: Comprehensive logging helps identify initialization race conditions
+8. **Debug Mode**: Use conditional logging (e.g., `if (DEBUG)`) to reduce console noise in production
+9. **Timeout Polling**: Add timeout limits to polling functions to prevent infinite loops
+10. **Code Organization**: Extract complex monitoring logic into separate helper methods for clarity
+
+## Code Optimizations (Nov 15, 2025)
+
+Following the initial fix, code was optimized for production readiness:
+
+1. **Debug Logging**: Added `DEBUG = import.meta.env.DEV` flag - ~30 log statements now conditional
+2. **Helper Method**: Extracted `monitorImageryLayerState()` - reduced 60+ lines of nested polling
+3. **Timeout Protection**: Added 5-second timeout to polling - prevents infinite loops
+4. **Comment Clarity**: Updated comments to reference specific documentation sections
+5. **Production Logs**: Critical logs always visible, verbose logs only in DEBUG mode
+
+**Impact**: ~70% reduction in production console output, improved maintainability
 
 ## Testing Checklist
 

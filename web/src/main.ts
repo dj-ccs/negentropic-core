@@ -149,10 +149,10 @@ class GeoV1Application {
 
     try {
       // Create OpenStreetMap imagery provider BEFORE viewer creation
-      // This allows Cesium to initialize properly with our custom imagery
+      // This is THE FIX: passing imageryProvider to constructor guarantees it's added as layer 0
       console.log('Creating OpenStreetMap imagery provider...');
       const osmProvider = new OpenStreetMapImageryProvider({
-        url: 'https://a.tile.openstreetmap.org/'
+        url: 'https://tile.openstreetmap.org/' // Standard OSM tile server
       });
 
       // Create viewer with OSM as the base imagery layer from the start
@@ -176,19 +176,23 @@ class GeoV1Application {
       // @ts-ignore
       window.viewer = this.viewer;
 
-      // Set globe base color as fallback when imagery doesn't load
-      this.viewer.scene.globe.baseColor = Color.fromCssColorString('#2e4057');
-      this.viewer.scene.globe.enableLighting = false; // Disable lighting for better visibility
-      this.viewer.scene.globe.showGroundAtmosphere = false; // Disable atmosphere for clearer view
-
-      // Force globe to show even if imagery fails
+      // ==========================================
+      // GLOBE VISIBILITY HARDENING (Grok's fix)
+      // ==========================================
+      // Force globe visibility - this is critical for imagery to render
       this.viewer.scene.globe.show = true;
+      this.viewer.scene.skyBox.show = true;
+      this.viewer.scene.backgroundColor = Color.BLACK;
 
-      // Set background color to something visible (not pure black)
-      this.viewer.scene.backgroundColor = Color.fromCssColorString('#0a0e27');
+      // Optional: Additional globe configuration for better visibility
+      this.viewer.scene.globe.baseColor = Color.fromCssColorString('#2e4057');
+      this.viewer.scene.globe.enableLighting = false;
+      this.viewer.scene.globe.showGroundAtmosphere = false;
 
-      // Disable skybox (space background) to see globe better
-      if (this.viewer.scene.skyBox) this.viewer.scene.skyBox.show = false;
+      // Force render on first frame to ensure globe appears
+      this.viewer.scene.render();
+
+      // Disable sun/moon for simpler visualization
       if (this.viewer.scene.sun) this.viewer.scene.sun.show = false;
       if (this.viewer.scene.moon) this.viewer.scene.moon.show = false;
 

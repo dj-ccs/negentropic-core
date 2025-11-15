@@ -1,12 +1,33 @@
 import { defineConfig } from 'vite';
-import cesium from 'vite-plugin-cesium';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 import wasm from 'vite-plugin-wasm';
 import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [
-    cesium(),
     wasm(),
+    // This plugin copies Cesium's static assets to the public folder
+    // so they are served from the same origin, satisfying COEP.
+    viteStaticCopy({
+      targets: [
+        {
+          src: 'node_modules/cesium/Build/Cesium/Workers',
+          dest: 'cesium'
+        },
+        {
+          src: 'node_modules/cesium/Build/Cesium/ThirdParty',
+          dest: 'cesium'
+        },
+        {
+          src: 'node_modules/cesium/Build/Cesium/Assets',
+          dest: 'cesium'
+        },
+        {
+          src: 'node_modules/cesium/Build/Cesium/Widgets',
+          dest: 'cesium'
+        }
+      ]
+    }),
     {
       name: 'configure-response-headers',
       configureServer: (server) => {
@@ -38,7 +59,7 @@ export default defineConfig({
       // Allow serving files from parent directory (for WASM build)
       allow: ['..'],
     },
-    // Proxy OSM tiles to bypass COEP blocking
+    // Proxy API calls to make them appear as same-origin to the browser
     proxy: {
       '/osm-tiles': {
         target: 'https://a.tile.openstreetmap.org',
@@ -50,6 +71,13 @@ export default defineConfig({
             proxyRes.headers['cross-origin-resource-policy'] = 'cross-origin';
           });
         },
+      },
+      // This proxy forwards API calls to the Cesium Ion server,
+      // making them appear as same-origin to the browser.
+      '/cesium-ion-api': {
+        target: 'https://api.cesium.com/',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/cesium-ion-api/, ''),
       },
     },
   },

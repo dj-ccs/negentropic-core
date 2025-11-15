@@ -23,7 +23,15 @@ import type {
 // Debug mode - set to false for production
 const DEBUG = import.meta.env.DEV;
 
-// Configure Cesium Ion token
+// --- START OF CRITICAL CONFIGURATION ---
+
+// 1. Tell Cesium where to load its assets from (the path we set in vite.config.ts)
+(window as any).CESIUM_BASE_URL = '/cesium/';
+
+// 2. Point Cesium's Ion server requests to our local proxy
+Ion.defaultServer = '/cesium-ion-api/';
+
+// 3. Configure Cesium Ion token from secure environment variable
 const CESIUM_ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN;
 if (CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== 'your_token_here') {
   Ion.defaultAccessToken = CESIUM_ION_TOKEN;
@@ -33,6 +41,8 @@ if (CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== 'your_token_here') {
   console.warn('  Get your free token at: https://cesium.com/ion/tokens');
   console.warn('  Add it to web/.env as: VITE_CESIUM_ION_TOKEN=your_token');
 }
+
+// --- END OF CRITICAL CONFIGURATION ---
 
 // Import worker URLs (Vite will handle bundling)
 import CoreWorkerURL from './workers/core-worker?worker&url';

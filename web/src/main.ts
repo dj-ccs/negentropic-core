@@ -154,6 +154,14 @@ class GeoV1Application {
         maximumRenderTimeChange: Infinity,
       });
 
+      // Expose viewer globally for debugging
+      // @ts-ignore
+      window.viewer = this.viewer;
+
+      // Set globe base color as fallback when imagery doesn't load
+      this.viewer.scene.globe.baseColor = Color.fromCssColorString('#1a1a2e');
+      this.viewer.scene.globe.enableLighting = false; // Disable lighting for better visibility
+
       // Log viewer creation success
       console.log('✓ Cesium Viewer created');
       console.log('  - Scene mode:', this.viewer.scene.mode);

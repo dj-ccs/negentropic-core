@@ -19,6 +19,19 @@ if (typeof HTMLCanvasElement === 'undefined') {
   self.HTMLCanvasElement = OffscreenCanvas;
 }
 
+// deck.gl uses IntersectionObserver for viewport culling, but workers don't have DOM APIs
+// Create a minimal no-op polyfill
+// @ts-ignore
+if (typeof IntersectionObserver === 'undefined') {
+  // @ts-ignore
+  self.IntersectionObserver = class IntersectionObserver {
+    constructor() {}
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 import type {
   RenderWorkerMessage,
   FieldOffsets,

@@ -9,8 +9,7 @@ import {
   Color,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
-  Ion,
-  UrlTemplateImageryProvider
+  Ion
 } from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import type {
@@ -213,29 +212,46 @@ class GeoV1Application {
       if (this.viewer.imageryLayers.length > 0) {
         const imageryLayer = this.viewer.imageryLayers.get(0);
         const provider = imageryLayer.imageryProvider;
-        console.log('[DEBUG] Imagery layer details:', {
-          show: imageryLayer.show,
-          alpha: imageryLayer.alpha,
-          brightness: imageryLayer.brightness,
-          contrast: imageryLayer.contrast,
-          ready: imageryLayer.ready,
-          providerReady: provider.ready,
-          providerType: provider.constructor?.name || 'Unknown',
-        });
 
-        // Monitor when imagery becomes ready
-        if (!provider.ready) {
-          console.log('⏳ Waiting for imagery provider to become ready...');
-          const checkReady = () => {
-            if (provider.ready) {
-              console.log('✓ Imagery provider is now ready!');
+        // Check if provider exists (it might not be immediately available with Ion imagery)
+        if (provider) {
+          console.log('[DEBUG] Imagery layer details:', {
+            show: imageryLayer.show,
+            alpha: imageryLayer.alpha,
+            brightness: imageryLayer.brightness,
+            contrast: imageryLayer.contrast,
+            ready: imageryLayer.ready,
+            providerReady: provider.ready,
+            providerType: provider.constructor?.name || 'Unknown',
+          });
+
+          // Monitor when imagery becomes ready
+          if (!provider.ready) {
+            console.log('⏳ Waiting for imagery provider to become ready...');
+            const checkReady = () => {
+              if (provider.ready) {
+                console.log('✓ Imagery provider is now ready!');
+              } else {
+                setTimeout(checkReady, 100);
+              }
+            };
+            checkReady();
+          } else {
+            console.log('✓ Imagery provider is already ready');
+          }
+        } else {
+          console.log('⏳ Imagery provider not yet available, waiting...');
+          // Wait for provider to be set by Cesium
+          const checkProvider = () => {
+            const layer = this.viewer!.imageryLayers.get(0);
+            if (layer && layer.imageryProvider) {
+              console.log('✓ Imagery provider is now available!');
+              console.log('[DEBUG] Provider type:', layer.imageryProvider.constructor?.name || 'Unknown');
             } else {
-              setTimeout(checkReady, 100);
+              setTimeout(checkProvider, 100);
             }
           };
-          checkReady();
-        } else {
-          console.log('✓ Imagery provider is already ready');
+          checkProvider();
         }
       }
 

@@ -152,7 +152,7 @@ class GeoV1Application {
       // This is THE FIX: passing imageryProvider to constructor guarantees it's added as layer 0
       console.log('Creating OpenStreetMap imagery provider...');
       const osmProvider = new OpenStreetMapImageryProvider({
-        url: 'https://tile.openstreetmap.org/' // Standard OSM tile server
+        url: 'https://a.tile.openstreetmap.org/' // Use subdomain for load balancing (a/b/c)
       });
 
       // Create viewer with OSM as the base imagery layer from the start
@@ -202,6 +202,13 @@ class GeoV1Application {
       console.log('  - Globe enabled:', this.viewer.scene.globe ? 'Yes' : 'No');
       console.log('  - Terrain provider:', this.viewer.terrainProvider?.constructor?.name || 'None');
       console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
+
+      // CRITICAL CHECK: Verify imagery layers were added (see docs/CESIUM_GUIDE.md)
+      if (this.viewer.imageryLayers.length === 0) {
+        console.error('❌ CRITICAL: No imagery layers! Globe will be invisible.');
+        console.error('   Fix: Ensure imageryProvider is passed to Viewer constructor.');
+        throw new Error('Imagery layers = 0 - globe initialization failed');
+      }
 
       // Check if globe is rendering
       if (!this.viewer.scene.globe) {

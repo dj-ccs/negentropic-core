@@ -148,23 +148,12 @@ class GeoV1Application {
     console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
 
     try {
-      // Create OSM imagery provider BEFORE viewer creation
-      // CRITICAL: Pass to Viewer constructor (docs/CESIUM_GUIDE.md line 103-107)
-      // Using UrlTemplateImageryProvider with proxy URL (OpenStreetMapImageryProvider doesn't support custom URLs)
-      console.log('Creating OpenStreetMap imagery provider...');
-      const osmProvider = new UrlTemplateImageryProvider({
-        // Use proxied URL to bypass COEP blocking (Vite proxy adds CORP headers)
-        url: '/osm-tiles/{z}/{x}/{y}.png', // OSM tile URL pattern via Vite proxy
-        credit: '© OpenStreetMap contributors'
-      });
-
-      // Create viewer with OSM as base imagery (see docs/CESIUM_GUIDE.md line 424-449)
-      // CRITICAL: Pass imageryProvider to constructor + baseLayerPicker: false
-      // This automatically adds the provider as the base layer (no baseLayer option needed!)
-      console.log('Creating Cesium Viewer with OSM imagery...');
+      // FIX: Create Viewer FIRST without imageryProvider, then manually add imagery
+      // This ensures proper initialization and avoids race conditions with async providers
+      console.log('Creating Cesium Viewer...');
       this.viewer = new Viewer(container, {
-        imageryProvider: osmProvider, // THE FIX: Pass to constructor (CESIUM_GUIDE.md line 433)
-        baseLayerPicker: false, // Disable UI picker; imageryProvider becomes base layer automatically
+        baseLayerPicker: false,        // Disable UI picker - we'll add imagery manually
+        imageryProvider: false as any, // CRITICAL: Disable default imagery (prevents Bing/Ion defaults)
         timeline: false,
         animation: false,
         geocoder: true,
@@ -176,6 +165,19 @@ class GeoV1Application {
         requestRenderMode: false, // Continuous rendering for 60 FPS
         maximumRenderTimeChange: Infinity,
       });
+
+      // Now manually add OSM imagery as base layer
+      // Using UrlTemplateImageryProvider with proxy URL (OpenStreetMapImageryProvider doesn't support custom URLs)
+      console.log('Adding OpenStreetMap imagery provider...');
+      const osmProvider = new UrlTemplateImageryProvider({
+        // Use proxied URL to bypass COEP blocking (Vite proxy adds CORP headers)
+        url: '/osm-tiles/{z}/{x}/{y}.png', // OSM tile URL pattern via Vite proxy
+        credit: '© OpenStreetMap contributors'
+      });
+
+      // Add to imagery layers collection as base layer (index 0)
+      // CRITICAL: This is the reliable way to ensure imagery is added
+      this.viewer.imageryLayers.addImageryProvider(osmProvider);
 
       // Expose viewer globally for debugging
       // @ts-ignore

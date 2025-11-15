@@ -159,8 +159,20 @@ class GeoV1Application {
       window.viewer = this.viewer;
 
       // Set globe base color as fallback when imagery doesn't load
-      this.viewer.scene.globe.baseColor = Color.fromCssColorString('#1a1a2e');
+      this.viewer.scene.globe.baseColor = Color.fromCssColorString('#2e4057');
       this.viewer.scene.globe.enableLighting = false; // Disable lighting for better visibility
+      this.viewer.scene.globe.showGroundAtmosphere = false; // Disable atmosphere for clearer view
+
+      // Force globe to show even if imagery fails
+      this.viewer.scene.globe.show = true;
+
+      // Set background color to something visible (not pure black)
+      this.viewer.scene.backgroundColor = Color.fromCssColorString('#0a0e27');
+
+      // Disable skybox (space background) to see globe better
+      this.viewer.scene.skyBox.show = false;
+      this.viewer.scene.sun.show = false;
+      this.viewer.scene.moon.show = false;
 
       // Log viewer creation success
       console.log('✓ Cesium Viewer created');

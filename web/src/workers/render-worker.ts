@@ -553,20 +553,40 @@ function readHeader(): SABHeader | null {
 
   let offset = 4; // Skip first 4 bytes (Atomics signal)
 
+  // Read in SAME ORDER as core-worker writes
+  const version = headerView.getUint32(offset, true);
+  offset += 4;
+
+  const epoch = headerView.getUint32(offset, true);
+  offset += 4;
+
+  const rows = headerView.getUint32(offset, true);
+  offset += 4;
+
+  const cols = headerView.getUint32(offset, true);
+  offset += 4;
+
+  // Timestamp (8 bytes) comes BEFORE bbox
+  const timestamp = headerView.getFloat64(offset, true);
+  offset += 8;
+
+  // BBox (4 floats = 16 bytes) comes AFTER timestamp
+  const bbox = {
+    minLon: headerView.getFloat32(offset, true),
+    minLat: headerView.getFloat32(offset + 4, true),
+    maxLon: headerView.getFloat32(offset + 8, true),
+    maxLat: headerView.getFloat32(offset + 12, true),
+  };
+
   const header: SABHeader = {
-    version: headerView.getUint32(offset, true),
-    epoch: headerView.getUint32(offset + 4, true),
+    version,
+    epoch,
     gridID: 'default',
-    bbox: {
-      minLon: headerView.getFloat32(offset + 16, true),
-      minLat: headerView.getFloat32(offset + 20, true),
-      maxLon: headerView.getFloat32(offset + 24, true),
-      maxLat: headerView.getFloat32(offset + 28, true),
-    },
-    stride: gridCols,
-    rows: headerView.getUint32(offset + 8, true),
-    cols: headerView.getUint32(offset + 12, true),
-    timestamp: headerView.getFloat64(offset + 32, true),
+    bbox,
+    stride: cols,
+    rows,
+    cols,
+    timestamp,
   };
 
   return header;

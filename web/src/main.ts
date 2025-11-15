@@ -194,27 +194,28 @@ class GeoV1Application {
         console.warn('⚠ Globe is not enabled in the scene!');
       }
 
-      // Add fallback imagery provider if Cesium Ion token is not configured
-      // This ensures globe is visible even without a valid token
-      if (!CESIUM_ION_TOKEN || CESIUM_ION_TOKEN === 'your_token_here') {
-        console.log('Adding OpenStreetMap fallback imagery provider...');
-        try {
-          const osmProvider = new OpenStreetMapImageryProvider({
-            url: 'https://a.tile.openstreetmap.org/'
-          });
+      // Add OpenStreetMap as fallback imagery provider
+      // The default Cesium Ion imagery often fails due to COEP restrictions
+      // OSM is more reliable for local development
+      console.log('Adding OpenStreetMap imagery provider as fallback...');
+      try {
+        const osmProvider = new OpenStreetMapImageryProvider({
+          url: 'https://a.tile.openstreetmap.org/'
+        });
 
-          // Remove default (likely failing) imagery layer
-          if (this.viewer.imageryLayers.length > 0) {
-            this.viewer.imageryLayers.remove(this.viewer.imageryLayers.get(0));
-          }
-
-          // Add OSM layer
-          this.viewer.imageryLayers.addImageryProvider(osmProvider);
-          console.log('✓ OpenStreetMap imagery provider added');
-        } catch (error) {
-          console.error('Failed to add OSM imagery provider:', error);
-          console.warn('Globe will display with base color only');
+        // Remove default Cesium Ion imagery layer (which may fail due to COEP)
+        if (this.viewer.imageryLayers.length > 0) {
+          const defaultLayer = this.viewer.imageryLayers.get(0);
+          console.log('Removing default imagery layer:', defaultLayer.imageryProvider.constructor.name);
+          this.viewer.imageryLayers.remove(defaultLayer);
         }
+
+        // Add OSM layer as primary imagery
+        this.viewer.imageryLayers.addImageryProvider(osmProvider);
+        console.log('✓ OpenStreetMap imagery provider added');
+      } catch (error) {
+        console.error('Failed to add OSM imagery provider:', error);
+        console.warn('Globe will display with base color only');
       }
 
       // Set initial camera position

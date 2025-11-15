@@ -159,12 +159,12 @@ class GeoV1Application {
       });
 
       // Create viewer with OSM as base imagery (see docs/CESIUM_GUIDE.md line 26-68)
-      // CRITICAL: Do NOT set baseLayer: false - it prevents imagery from being added!
+      // CRITICAL: MUST explicitly set baseLayer: true for imagery to be added!
       console.log('Creating Cesium Viewer with OSM imagery...');
       this.viewer = new Viewer(container, {
         imageryProvider: osmProvider, // THE FIX: Pass to constructor (CESIUM_GUIDE.md line 433)
         baseLayerPicker: false, // Disable UI picker, but KEEP base layer functionality
-        // baseLayer: true is default - DO NOT set to false!
+        baseLayer: true, // CRITICAL: Explicitly enable base layer (Grok's INTERCONNECTION_GUIDE)
         timeline: false,
         animation: false,
         geocoder: true,

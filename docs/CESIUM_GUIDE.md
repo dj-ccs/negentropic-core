@@ -477,13 +477,14 @@ if (viewer.imageryLayers.length === 0) {
 After encountering the invisible globe issue (stars visible, no Earth), we implemented the following fix in `web/src/main.ts`:
 
 ```typescript
-import { Viewer, Ion, createWorldImagery } from 'cesium';
+import { Viewer, Ion, IonImageryProvider } from 'cesium';
 
 // Configure Ion token (required)
 Ion.defaultAccessToken = CESIUM_ION_TOKEN;
 
 // CRITICAL: Create imagery provider BEFORE Viewer
-const imageryProvider = await createWorldImagery();
+// Asset ID 2 = Bing Maps Aerial with Labels (Ion default)
+const imageryProvider = await IonImageryProvider.fromAssetId(2);
 
 const viewer = new Viewer('cesiumContainer', {
   baseLayerPicker: false,
@@ -498,10 +499,15 @@ viewer.scene.render();
 ```
 
 **Why this works:**
-- `createWorldImagery()` returns a fully configured Ion imagery provider
+- `IonImageryProvider.fromAssetId(2)` returns Cesium Ion's default Bing Maps imagery
 - Passing to constructor guarantees it becomes layer 0
 - Avoids async initialization race conditions
 - Works reliably with COEP/COOP headers
+
+**Available Ion Asset IDs:**
+- `2` - Bing Maps Aerial with Labels (default)
+- `3` - Bing Maps Aerial
+- `4` - Bing Maps Road
 
 See `web/src/main.ts:150-172` for our production implementation:
 

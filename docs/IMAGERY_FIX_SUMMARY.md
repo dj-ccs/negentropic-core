@@ -32,14 +32,15 @@ if (provider) {
 }
 ```
 
-### Fix 2: Explicit Ion Imagery Creation (Commit 84e4cb7)
-Switched to explicit `createWorldImagery()` pattern:
+### Fix 2: Explicit Ion Imagery Creation (Commits 84e4cb7, latest)
+Switched to explicit `IonImageryProvider.fromAssetId()` pattern:
 
 ```typescript
-import { createWorldImagery } from 'cesium';
+import { IonImageryProvider } from 'cesium';
 
 // BEFORE viewer creation
-const imageryProvider = await createWorldImagery();
+// Asset ID 2 = Bing Maps Aerial with Labels (Ion default)
+const imageryProvider = await IonImageryProvider.fromAssetId(2);
 
 const viewer = new Viewer(container, {
   imageryProvider: imageryProvider,  // THE FIX
@@ -47,6 +48,9 @@ const viewer = new Viewer(container, {
   // ...
 });
 ```
+
+**Note:** Initial implementation incorrectly used `createWorldImagery()` which doesn't exist in Cesium v1.120.
+Corrected to use `IonImageryProvider.fromAssetId(2)` which is the proper API.
 
 ### Fix 3: Enhanced Diagnostics (Commit 84e4cb7)
 Added comprehensive logging and auto-correction:

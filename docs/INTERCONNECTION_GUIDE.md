@@ -37,9 +37,10 @@ Main Thread (CesiumJS + UI)
   ```ts
   // CRITICAL: Explicitly create Ion imagery provider before Viewer
   // This is THE FIX for invisible globes - see Common Pitfalls section
-  import { createWorldImagery } from 'cesium';
+  import { IonImageryProvider } from 'cesium';
 
-  const imageryProvider = await createWorldImagery();
+  // Asset ID 2 = Bing Maps Aerial with Labels (Ion default)
+  const imageryProvider = await IonImageryProvider.fromAssetId(2);
 
   const viewer = new Viewer('cesiumContainer', {
     baseLayerPicker: false,

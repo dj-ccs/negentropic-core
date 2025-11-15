@@ -249,6 +249,7 @@ if (typeof document === 'undefined') {
         dispatchEvent: () => true,
         appendChild: () => {},
         removeChild: () => {},
+        insertBefore: () => {},
         setAttribute: () => {},
         getAttribute: () => null,
         removeAttribute: () => {},
@@ -256,6 +257,12 @@ if (typeof document === 'undefined') {
           left: 0, top: 0, right: 0, bottom: 0,
           width: 0, height: 0, x: 0, y: 0
         }),
+        // DOM query methods - critical for WidgetManager
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        getElementById: () => null,
+        getElementsByClassName: () => [],
+        getElementsByTagName: () => [],
         tagName: tag.toUpperCase(),
         nodeName: tag.toUpperCase(),
         nodeType: 1,

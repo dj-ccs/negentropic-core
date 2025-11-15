@@ -44,19 +44,27 @@ Main Thread (CesiumJS + UI)
 
   const viewer = new Viewer('cesiumContainer', {
     baseLayerPicker: false,
-    imageryProvider: imageryProvider,  // MUST pass explicitly to guarantee layer 0
+    imageryProvider: imageryProvider,  // Pass to constructor (primary method)
+    baseLayer: true,                   // Enable base rendering (CRITICAL for visibility)
     timeline: false,
     animation: false,
     geocoder: true,
     homeButton: true,
     sceneModePicker: true,
-    requestRenderMode: false,
+    requestRenderMode: false,          // Continuous 60 FPS
     // ... other options
   });
 
+  // FALLBACK: Explicitly add imagery layer if constructor didn't add it
+  // In CesiumJS v1.120+, passing to constructor may not always add layer 0
+  if (viewer.imageryLayers.length === 0) {
+    console.warn('⚠ Imagery not added via constructor, adding explicitly...');
+    viewer.imageryLayers.addImageryProvider(imageryProvider);
+  }
+
   // Post-creation hardening
   viewer.scene.globe.show = true;
-  viewer.scene.render();
+  viewer.scene.requestRender();  // Force first render
   ```
 - **Click → ROI**:
   ```ts
@@ -113,16 +121,16 @@ server: {
 OSM tiles require proxy but Ion is more reliable in production.
 
 ## 7. Common Pitfalls & Quick Fixes
-| Symptom | Fix |
-|--------|-----|
-| **Invisible globe (stars visible, no Earth)** | **CRITICAL FIX**: Use `createWorldImagery()` and pass to Viewer constructor. See code in Section 3. |
-| Cannot read properties of undefined (reading 'ready') | Add null check before accessing `imageryProvider.ready` - provider may be undefined during initialization |
-| Black/transparent globe | Ensure Cesium Ion token is configured (`Ion.defaultAccessToken`). Verify `imageryLayers.length > 0` |
-| COEP blocks Cesium assets | Headers already configured in `vite.config.ts` |
-| WASM "HEAPU8 undefined" | Export HEAP* in `EXPORTED_RUNTIME_METHODS` |
-| deck.gl errors in worker | Polyfill `ResizeObserver`, `IntersectionObserver`, `Hammer`, canvas methods |
-| Clickable but no visuals | `viewer.scene.globe.show = true; viewer.scene.requestRender();` |
-| OSM/UrlTemplateImageryProvider not ready | Don't use OSM with COEP/COOP - use Ion imagery instead (more reliable) |
+| Symptom | Logs/Console | Fix |
+|---------|--------------|-----|
+| **Invisible Globe (Stars Visible)** | `imageryLayers.length = 0`, `ready: false` | Pass `imageryProvider` to constructor AND set `baseLayer: true`; add via `viewer.imageryLayers.addImageryProvider(provider)` as fallback; hard refresh |
+| **COEP Blocks Tiles/Assets** | "Specify a Cross-Origin Embedder Policy" warnings | Vite proxy + CORP header; serve Cesium locally (`npm i cesium`) |
+| **WASM HEAPU8 Undefined** | "Cannot read properties of undefined (reading 'set')" | Export `HEAPU8, HEAP8, etc.` in `-sEXPORTED_RUNTIME_METHODS`; call `createNegentropic(Module)` after eval(glue) |
+| **deck.gl Worker Errors** | "ResizeObserver undefined", "getBoundingClientRect not a function" | Polyfill ResizeObserver/IntersectionObserver; add `offscreen.getBoundingClientRect = () => ({width: 1024, height: 1024})` |
+| **OffscreenCanvas Transfer Fail** | "Cannot transfer control more than once" | Transfer **once** with flag; create new canvas on error/reconnect |
+| **Slow/Blank Mobile** | High zoom, no tiles | Set `maximumLevel: 14`; enable WebGL2 in browser flags; use `requestRenderMode: true` for throttled FPS |
+| **Click Works, No Sim** | "WASM_READY" but no plume | Check SAB notify: `Atomics.notify(sabView, 0)`; verify offset in Float32Array |
+| Cannot read properties of undefined (reading 'ready') | Provider undefined during init | Add null check: `if (provider) { ... }` before accessing `provider.ready` |
 
 ## 8. Future-Proof Extensions
 - **WebGPU**: Replace WebGL2 with `navigator.gpu` in render worker (2026 target).
@@ -134,11 +142,14 @@ OSM tiles require proxy but Ion is more reliable in production.
 This guide lives in `/docs/INTERCONNECTION_GUIDE.md`.
 Update it every sprint.
 
-**Last Updated**: 2025-11-15 (Switched to explicit Ion imagery creation)
+**Last Updated**: 2025-11-15 (Added baseLayer option and fallback imagery layer addition)
 
 **Recent Changes (Nov 2025):**
 - Switched from OSM to Cesium Ion imagery (more reliable with COEP/COOP)
-- Added `createWorldImagery()` explicit provider creation (fixes invisible globe)
+- Added `IonImageryProvider.fromAssetId(2)` explicit provider creation (correct CesiumJS v1.120 API)
+- Added `baseLayer: true` option to enable base rendering pipeline (CRITICAL for visibility)
+- Added fallback explicit layer addition if constructor doesn't add layer 0 automatically
+- Changed to `requestRender()` for immediate frame updates
 - Removed OSM proxy configuration (no longer needed)
 - Added null checks for imagery provider (prevents initialization crashes)
 

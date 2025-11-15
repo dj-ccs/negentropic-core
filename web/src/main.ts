@@ -20,6 +20,9 @@ import type {
   PerformanceMetrics
 } from './types/geo-api';
 
+// Debug mode - set to false for production
+const DEBUG = import.meta.env.DEV;
+
 // Configure Cesium Ion token
 const CESIUM_ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN;
 if (CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== 'your_token_here') {
@@ -144,21 +147,24 @@ class GeoV1Application {
       throw new Error('Cesium container not found');
     }
 
-    console.log('Creating Cesium Viewer...');
-    console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
+    if (DEBUG) {
+      console.log('Creating Cesium Viewer...');
+      console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
+    }
 
     try {
-      // FIX: Explicitly create Ion imagery provider and pass to Viewer constructor
-      // This is THE FIX for invisible globes (see docs/CESIUM_GUIDE.md)
-      // IonImageryProvider.fromAssetId() creates Ion imagery (asset 2 = Bing Maps)
-      console.log('Creating Ion imagery provider...');
+      // CRITICAL FIX: Explicitly create Ion imagery provider before Viewer construction
+      // See docs/CESIUM_GUIDE.md Section "Implementation in GEO-v1" for details
+      // Using IonImageryProvider.fromAssetId(2) = Bing Maps Aerial with Labels
+      if (DEBUG) console.log('Creating Ion imagery provider...');
       const imageryProvider = await IonImageryProvider.fromAssetId(2);
-      console.log('✓ Ion imagery provider created:', imageryProvider.constructor?.name || 'Unknown');
+      if (DEBUG) console.log('✓ Ion imagery provider created:', imageryProvider.constructor?.name || 'Unknown');
 
-      console.log('Creating Cesium Viewer with explicit Ion imagery...');
+      if (DEBUG) console.log('Creating Cesium Viewer with explicit Ion imagery...');
       this.viewer = new Viewer(container, {
         baseLayerPicker: false,        // Disable UI picker
         imageryProvider: imageryProvider, // CRITICAL: Explicitly pass imagery provider
+        baseLayer: true,               // Enable base rendering (CRITICAL for visibility)
         timeline: false,
         animation: false,
         geocoder: true,
@@ -172,122 +178,71 @@ class GeoV1Application {
       });
 
       // Expose viewer globally for debugging
-      // @ts-ignore
-      window.viewer = this.viewer;
+      if (DEBUG) {
+        // @ts-ignore
+        window.viewer = this.viewer;
+      }
 
       // ==========================================
-      // GLOBE VISIBILITY HARDENING (Grok's fix)
+      // GLOBE VISIBILITY HARDENING
       // ==========================================
-      // Force globe visibility - this is critical for imagery to render
+      // Force globe visibility and configure appearance
+      // Ref: docs/INTERCONNECTION_GUIDE.md Section 3
       this.viewer.scene.globe.show = true;
       this.viewer.scene.skyBox.show = true;
       this.viewer.scene.backgroundColor = Color.BLACK;
-
-      // Optional: Additional globe configuration for better visibility
       this.viewer.scene.globe.baseColor = Color.fromCssColorString('#2e4057');
       this.viewer.scene.globe.enableLighting = false;
       this.viewer.scene.globe.showGroundAtmosphere = false;
 
-      // Force render on first frame to ensure globe appears
-      this.viewer.scene.render();
-
-      // Disable sun/moon for simpler visualization
+      // Disable sun/moon for cleaner visualization
       if (this.viewer.scene.sun) this.viewer.scene.sun.show = false;
       if (this.viewer.scene.moon) this.viewer.scene.moon.show = false;
 
       // Log viewer creation success
-      console.log('✓ Cesium Viewer created');
-      console.log('  - Scene mode:', this.viewer.scene.mode);
-      console.log('  - Globe enabled:', this.viewer.scene.globe ? 'Yes' : 'No');
-      console.log('  - Terrain provider:', this.viewer.terrainProvider?.constructor?.name || 'None');
-      console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
-
-      // CRITICAL CHECK: Verify imagery layers were added (see docs/CESIUM_GUIDE.md)
-      if (this.viewer.imageryLayers.length === 0) {
-        console.error('❌ CRITICAL: No imagery layers! Globe will be invisible.');
-        console.error('   Fix: Ensure imageryProvider is passed to Viewer constructor.');
-        throw new Error('Imagery layers = 0 - globe initialization failed');
+      if (DEBUG) {
+        console.log('✓ Cesium Viewer created');
+        console.log('  - Scene mode:', this.viewer.scene.mode);
+        console.log('  - Globe enabled:', this.viewer.scene.globe ? 'Yes' : 'No');
+        console.log('  - Terrain provider:', this.viewer.terrainProvider?.constructor?.name || 'None');
+        console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
       }
 
-      // Check if globe is rendering
+      // CRITICAL CHECK: Verify imagery layers were added (see docs/CESIUM_GUIDE.md)
+      // FALLBACK: In CesiumJS v1.120+, passing to constructor may not always add layer 0
+      if (this.viewer.imageryLayers.length === 0) {
+        console.warn('⚠ Imagery not added via constructor, adding explicitly...');
+        this.viewer.imageryLayers.addImageryProvider(imageryProvider);
+        if (DEBUG) {
+          console.log('✓ Imagery layer added explicitly');
+          console.log('  - Imagery layers after explicit add:', this.viewer.imageryLayers.length);
+        }
+
+        // Final check - if still 0, this is a critical error
+        if (this.viewer.imageryLayers.length === 0) {
+          console.error('❌ CRITICAL: Failed to add imagery layer! Globe will be invisible.');
+          throw new Error('Imagery layers = 0 - globe initialization failed');
+        }
+      } else {
+        console.log('✓ Cesium globe initialized with', this.viewer.imageryLayers.length, 'imagery layer(s)');
+      }
+
+      // Verify globe is enabled
       if (!this.viewer.scene.globe) {
         console.warn('⚠ Globe is not enabled in the scene!');
       }
 
-      // Debug: Check imagery layer state
-      if (this.viewer.imageryLayers.length > 0) {
-        const imageryLayer = this.viewer.imageryLayers.get(0);
-        const provider = imageryLayer.imageryProvider;
-
-        // Check if provider exists (it might not be immediately available with Ion imagery)
-        if (provider) {
-          console.log('[DEBUG] Imagery layer details:', {
-            show: imageryLayer.show,
-            alpha: imageryLayer.alpha,
-            brightness: imageryLayer.brightness,
-            contrast: imageryLayer.contrast,
-            ready: imageryLayer.ready,
-            providerReady: provider.ready,
-            providerType: provider.constructor?.name || 'Unknown',
-          });
-
-          // Monitor when imagery becomes ready
-          if (!provider.ready) {
-            console.log('⏳ Waiting for imagery provider to become ready...');
-            const checkReady = () => {
-              if (provider.ready) {
-                console.log('✓ Imagery provider is now ready!');
-              } else {
-                setTimeout(checkReady, 100);
-              }
-            };
-            checkReady();
-          } else {
-            console.log('✓ Imagery provider is already ready');
-          }
-        } else {
-          console.log('⏳ Imagery provider not yet available, waiting...');
-          // Wait for provider to be set by Cesium
-          const checkProvider = () => {
-            const layer = this.viewer!.imageryLayers.get(0);
-            if (layer && layer.imageryProvider) {
-              console.log('✓ Imagery provider is now available!');
-              console.log('[DEBUG] Provider type:', layer.imageryProvider.constructor?.name || 'Unknown');
-              console.log('[DEBUG] Full imagery layer state:', {
-                show: layer.show,
-                alpha: layer.alpha,
-                brightness: layer.brightness,
-                contrast: layer.contrast,
-                ready: layer.ready,
-                providerReady: layer.imageryProvider.ready,
-              });
-
-              // Check if layer is visible
-              if (!layer.show) {
-                console.error('❌ Imagery layer show is FALSE - forcing to true');
-                layer.show = true;
-              }
-              if (layer.alpha < 1.0) {
-                console.warn('⚠ Imagery layer alpha is', layer.alpha, '- forcing to 1.0');
-                layer.alpha = 1.0;
-              }
-
-              // Force a render
-              this.viewer!.scene.requestRender();
-            } else {
-              setTimeout(checkProvider, 100);
-            }
-          };
-          checkProvider();
-        }
+      // Monitor and verify imagery layer state
+      if (DEBUG && this.viewer.imageryLayers.length > 0) {
+        this.monitorImageryLayerState();
       }
 
       // Set initial camera position
-      console.log('Setting initial camera view...');
+      if (DEBUG) console.log('Setting initial camera view...');
       this.viewer.camera.setView({
         destination: Cartesian3.fromDegrees(-95.0, 40.0, 15000000.0),
       });
-      console.log('✓ Camera positioned');
+      if (DEBUG) console.log('✓ Camera positioned');
 
       // Add click handler for region selection
       this.setupGlobeClickHandler();
@@ -295,32 +250,96 @@ class GeoV1Application {
       // Wait a frame to ensure scene is ready
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Debug: Check if globe is actually visible
-      console.log('✓ Cesium initialized successfully');
-      console.log('[DEBUG] Globe visibility check:', {
-        globeShow: this.viewer.scene.globe.show,
-        backgroundColor: this.viewer.scene.backgroundColor,
-        canvasWidth: this.viewer.canvas.width,
-        canvasHeight: this.viewer.canvas.height,
-        canvasStyle: this.viewer.canvas.style.cssText,
-        containerStyle: container.style.cssText,
-      });
+      // Log successful initialization
+      console.log('✓ Cesium globe initialized successfully');
 
-      // Debug: Check if Cesium canvas is actually in the DOM and visible
-      const cesiumCanvas = this.viewer.canvas;
-      const computedStyle = window.getComputedStyle(cesiumCanvas);
-      console.log('[DEBUG] Cesium canvas computed styles:', {
-        display: computedStyle.display,
-        visibility: computedStyle.visibility,
-        opacity: computedStyle.opacity,
-        zIndex: computedStyle.zIndex,
-        width: computedStyle.width,
-        height: computedStyle.height,
-      });
+      // Debug: Detailed visibility diagnostics
+      if (DEBUG) {
+        console.log('[DEBUG] Globe visibility check:', {
+          globeShow: this.viewer.scene.globe.show,
+          backgroundColor: this.viewer.scene.backgroundColor,
+          canvasWidth: this.viewer.canvas.width,
+          canvasHeight: this.viewer.canvas.height,
+        });
+
+        const cesiumCanvas = this.viewer.canvas;
+        const computedStyle = window.getComputedStyle(cesiumCanvas);
+        console.log('[DEBUG] Canvas computed styles:', {
+          display: computedStyle.display,
+          visibility: computedStyle.visibility,
+          opacity: computedStyle.opacity,
+          width: computedStyle.width,
+          height: computedStyle.height,
+        });
+      }
 
     } catch (error) {
       console.error('Failed to create Cesium Viewer:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Monitor imagery layer state for debugging purposes
+   * Checks provider readiness and enforces visibility settings
+   */
+  private monitorImageryLayerState() {
+    if (!this.viewer || this.viewer.imageryLayers.length === 0) return;
+
+    const imageryLayer = this.viewer.imageryLayers.get(0);
+    const provider = imageryLayer.imageryProvider;
+
+    if (provider) {
+      console.log('[DEBUG] Imagery layer details:', {
+        show: imageryLayer.show,
+        alpha: imageryLayer.alpha,
+        ready: imageryLayer.ready,
+        providerReady: provider.ready,
+        providerType: provider.constructor?.name || 'Unknown',
+      });
+
+      // Monitor provider readiness
+      if (!provider.ready) {
+        console.log('⏳ Waiting for imagery provider to become ready...');
+        const startTime = Date.now();
+        const checkReady = () => {
+          if (provider.ready) {
+            console.log(`✓ Imagery provider ready after ${Date.now() - startTime}ms`);
+          } else if (Date.now() - startTime < 5000) {
+            setTimeout(checkReady, 100);
+          } else {
+            console.warn('⚠ Imagery provider not ready after 5s timeout');
+          }
+        };
+        checkReady();
+      } else {
+        console.log('✓ Imagery provider is already ready');
+      }
+
+      // Enforce visibility
+      if (!imageryLayer.show) {
+        console.warn('⚠ Imagery layer show is FALSE - forcing to true');
+        imageryLayer.show = true;
+      }
+      if (imageryLayer.alpha < 1.0) {
+        console.warn('⚠ Imagery layer alpha is', imageryLayer.alpha, '- forcing to 1.0');
+        imageryLayer.alpha = 1.0;
+      }
+    } else {
+      console.log('⏳ Imagery provider not yet available, monitoring...');
+      const startTime = Date.now();
+      const checkProvider = () => {
+        const layer = this.viewer!.imageryLayers.get(0);
+        if (layer && layer.imageryProvider) {
+          console.log(`✓ Imagery provider available after ${Date.now() - startTime}ms`);
+          console.log('[DEBUG] Provider type:', layer.imageryProvider.constructor?.name || 'Unknown');
+        } else if (Date.now() - startTime < 5000) {
+          setTimeout(checkProvider, 100);
+        } else {
+          console.warn('⚠ Imagery provider not available after 5s timeout');
+        }
+      };
+      checkProvider();
     }
   }
 

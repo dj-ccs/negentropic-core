@@ -142,11 +142,14 @@ OSM tiles require proxy but Ion is more reliable in production.
 This guide lives in `/docs/INTERCONNECTION_GUIDE.md`.
 Update it every sprint.
 
-**Last Updated**: 2025-11-15 (Switched to explicit Ion imagery creation)
+**Last Updated**: 2025-11-15 (Added baseLayer option and fallback imagery layer addition)
 
 **Recent Changes (Nov 2025):**
 - Switched from OSM to Cesium Ion imagery (more reliable with COEP/COOP)
-- Added `createWorldImagery()` explicit provider creation (fixes invisible globe)
+- Added `IonImageryProvider.fromAssetId(2)` explicit provider creation (correct CesiumJS v1.120 API)
+- Added `baseLayer: true` option to enable base rendering pipeline (CRITICAL for visibility)
+- Added fallback explicit layer addition if constructor doesn't add layer 0 automatically
+- Changed to `requestRender()` for immediate frame updates
 - Removed OSM proxy configuration (no longer needed)
 - Added null checks for imagery provider (prevents initialization crashes)
 

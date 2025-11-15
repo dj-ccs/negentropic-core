@@ -539,4 +539,4 @@ See `web/src/main.ts:150-220` for our production implementation:
 
 **Attribution**: This guide synthesizes Cesium v1.120+ documentation with fixes from Grok (xAI), community forums, and production debugging in the Negentropic-Core GEO-v1 pipeline.
 
-**Last Updated**: 2025-11-15 (Ion imagery fix & troubleshooting section added)
+**Last Updated**: 2025-11-15 (Added baseLayer option and fallback layer addition pattern)

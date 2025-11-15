@@ -148,12 +148,12 @@ class GeoV1Application {
     console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
 
     try {
-      // FIX: Create Viewer FIRST without imageryProvider, then manually add imagery
-      // This ensures proper initialization and avoids race conditions with async providers
-      console.log('Creating Cesium Viewer...');
+      // FIX: Use Cesium Ion default imagery (Bing Maps)
+      // Since Ion token is configured, this provides reliable, high-quality imagery
+      console.log('Creating Cesium Viewer with Ion imagery...');
       this.viewer = new Viewer(container, {
-        baseLayerPicker: false,        // Disable UI picker - we'll add imagery manually
-        imageryProvider: false as any, // CRITICAL: Disable default imagery (prevents Bing/Ion defaults)
+        baseLayerPicker: false,        // Disable UI picker
+        // Don't set imageryProvider - let Cesium use Ion default (Bing Maps)
         timeline: false,
         animation: false,
         geocoder: true,
@@ -165,19 +165,6 @@ class GeoV1Application {
         requestRenderMode: false, // Continuous rendering for 60 FPS
         maximumRenderTimeChange: Infinity,
       });
-
-      // Now manually add OSM imagery as base layer
-      // Using UrlTemplateImageryProvider with proxy URL (OpenStreetMapImageryProvider doesn't support custom URLs)
-      console.log('Adding OpenStreetMap imagery provider...');
-      const osmProvider = new UrlTemplateImageryProvider({
-        // Use proxied URL to bypass COEP blocking (Vite proxy adds CORP headers)
-        url: '/osm-tiles/{z}/{x}/{y}.png', // OSM tile URL pattern via Vite proxy
-        credit: '© OpenStreetMap contributors'
-      });
-
-      // Add to imagery layers collection as base layer (index 0)
-      // CRITICAL: This is the reliable way to ensure imagery is added
-      this.viewer.imageryLayers.addImageryProvider(osmProvider);
 
       // Expose viewer globally for debugging
       // @ts-ignore
@@ -225,35 +212,31 @@ class GeoV1Application {
       // Debug: Check imagery layer state
       if (this.viewer.imageryLayers.length > 0) {
         const imageryLayer = this.viewer.imageryLayers.get(0);
+        const provider = imageryLayer.imageryProvider;
         console.log('[DEBUG] Imagery layer details:', {
           show: imageryLayer.show,
           alpha: imageryLayer.alpha,
           brightness: imageryLayer.brightness,
           contrast: imageryLayer.contrast,
           ready: imageryLayer.ready,
-          providerReady: osmProvider.ready,
-          providerType: osmProvider.constructor?.name || 'Unknown',
+          providerReady: provider.ready,
+          providerType: provider.constructor?.name || 'Unknown',
         });
-      }
 
-      // Add error handler for imagery loading failures
-      osmProvider.errorEvent.addEventListener((error: any) => {
-        console.error('❌ OSM Imagery provider error:', error);
-      });
-
-      // Monitor when imagery becomes ready
-      if (!osmProvider.ready) {
-        console.log('⏳ Waiting for OSM imagery provider to become ready...');
-        const checkReady = () => {
-          if (osmProvider.ready) {
-            console.log('✓ OSM imagery provider is now ready!');
-          } else {
-            setTimeout(checkReady, 100);
-          }
-        };
-        checkReady();
-      } else {
-        console.log('✓ OSM imagery provider is already ready');
+        // Monitor when imagery becomes ready
+        if (!provider.ready) {
+          console.log('⏳ Waiting for imagery provider to become ready...');
+          const checkReady = () => {
+            if (provider.ready) {
+              console.log('✓ Imagery provider is now ready!');
+            } else {
+              setTimeout(checkReady, 100);
+            }
+          };
+          checkReady();
+        } else {
+          console.log('✓ Imagery provider is already ready');
+        }
       }
 
       // Set initial camera position

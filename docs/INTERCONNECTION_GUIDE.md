@@ -37,16 +37,16 @@ Main Thread (CesiumJS + UI)
   ```ts
   const viewer = new Viewer('cesiumContainer', {
     baseLayerPicker: false,
-    imageryProvider: false as any,  // Disable defaults
-    // ... UI widgets off
+    // Don't set imageryProvider - let Cesium use Ion default (Bing Maps)
+    // Requires Ion.defaultAccessToken to be set
+    timeline: false,
+    animation: false,
+    geocoder: true,
+    homeButton: true,
+    sceneModePicker: true,
+    requestRenderMode: false,
+    // ... other options
   });
-
-  // Manually add OSM imagery as base layer
-  const osmProvider = new UrlTemplateImageryProvider({
-    url: '/osm-tiles/{z}/{x}/{y}.png',  // proxied
-    credit: '© OpenStreetMap contributors'
-  });
-  viewer.imageryLayers.addImageryProvider(osmProvider);
   ```
 - **Click → ROI**:
   ```ts
@@ -113,12 +113,12 @@ server: {
 ## 7. Common Pitfalls & Quick Fixes
 | Symptom | Fix |
 |--------|-----|
-| Black/transparent globe | Ensure imagery is manually added via `viewer.imageryLayers.addImageryProvider()` + proxy + hard refresh |
-| COEP blocks Cesium assets | Serve Cesium locally (`public/cesium`) or proxy |
+| Black/transparent globe | Ensure Cesium Ion token is configured (`Ion.defaultAccessToken`). Don't set `imageryProvider: false` |
+| COEP blocks Cesium assets | Headers already configured in `vite.config.ts` |
 | WASM "HEAPU8 undefined" | Export HEAP* in `EXPORTED_RUNTIME_METHODS` |
 | deck.gl errors in worker | Polyfill `ResizeObserver`, `IntersectionObserver`, `Hammer`, canvas methods |
 | Clickable but no visuals | `viewer.scene.globe.show = true; viewer.scene.requestRender();` |
-| Imagery layers = 0 | Create viewer with `imageryProvider: false`, then manually add with `addImageryProvider()` |
+| Imagery provider not ready | Use Cesium Ion default imagery (requires valid token) instead of custom providers |
 
 ## 8. Future-Proof Extensions
 - **WebGPU**: Replace WebGL2 with `navigator.gpu` in render worker (2026 target).

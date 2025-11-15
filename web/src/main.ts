@@ -152,7 +152,8 @@ class GeoV1Application {
       // This is THE FIX: passing imageryProvider to constructor guarantees it's added as layer 0
       console.log('Creating OpenStreetMap imagery provider...');
       const osmProvider = new OpenStreetMapImageryProvider({
-        url: 'https://a.tile.openstreetmap.org/' // Use subdomain for load balancing (a/b/c)
+        // Use proxied URL to bypass COEP blocking (Vite proxy adds CORP headers)
+        url: '/osm-tiles/' // Proxied through Vite to https://a.tile.openstreetmap.org
       });
 
       // Create viewer with OSM as the base imagery layer from the start

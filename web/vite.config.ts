@@ -38,6 +38,20 @@ export default defineConfig({
       // Allow serving files from parent directory (for WASM build)
       allow: ['..'],
     },
+    // Proxy OSM tiles to bypass COEP blocking
+    proxy: {
+      '/osm-tiles': {
+        target: 'https://a.tile.openstreetmap.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/osm-tiles/, ''),
+        configure: (proxy, _options) => {
+          proxy.on('proxyRes', (proxyRes, _req, _res) => {
+            // Add CORP header to OSM tiles so COEP doesn't block them
+            proxyRes.headers['cross-origin-resource-policy'] = 'cross-origin';
+          });
+        },
+      },
+    },
   },
   preview: {
     port: 3000,

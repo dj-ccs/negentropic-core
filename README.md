@@ -84,7 +84,9 @@ See REGv2_Microbial.json for complete parameters and `test_regeneration_microbia
 - ✅ Added detailed WASM error reporting with UTF8ToString
 - ✅ Fixed num_entities: 0 bug (C code requires >= 1)
 
-See [web/README.md](web/README.md) for complete documentation and quick start guide.
+**Resources**:
+- [web/README.md](web/README.md) - Complete documentation and quick start guide
+- **[docs/CESIUM_GUIDE.md](docs/CESIUM_GUIDE.md)** - CesiumJS troubleshooting & best practices (CRITICAL for globe visibility issues)
 
 ### ✅ REGv1 Sprint Complete - Regeneration Cascade Solver
 *Completed: November 14, 2025*
@@ -447,6 +449,10 @@ make test           # Run all test suites
 - **[Integration Guide](docs/integration_example_regv1.md)** - Working code examples for coupled simulations
 - **[Architecture Guide](docs/core-architecture.md)** - System architecture and design principles
 - **[Phase 1 Summary](docs/PHASE1_IMPLEMENTATION.md)** - Implementation milestones
+
+### Web/GEO-v1 Documentation
+- **[web/README.md](web/README.md)** - GEO-v1 quick start guide and deployment
+- **[docs/CESIUM_GUIDE.md](docs/CESIUM_GUIDE.md)** - CesiumJS cheat sheet, troubleshooting invisible globe, COEP/SAB setup
 
 ### Scientific Documentation
 - **[Macroscale Regeneration](docs/science/macroscale_regeneration.md)** - REGv1 scientific foundation, parameter synthesis, Loess Plateau anchors

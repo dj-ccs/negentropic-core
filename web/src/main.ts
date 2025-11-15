@@ -261,9 +261,10 @@ class GeoV1Application {
         }
       };
 
-      this.coreWorker.onerror = (error) => {
-        console.error('Core Worker error:', error);
-        reject(error);
+      this.coreWorker.onerror = (event: ErrorEvent) => {
+        console.error('Core Worker error:', event);
+        const errorMsg = event.message || event.error?.message || 'Unknown worker error';
+        reject(new Error(`Core Worker failed: ${errorMsg}`));
       };
 
       // Timeout
@@ -312,9 +313,10 @@ class GeoV1Application {
         }
       };
 
-      this.renderWorker.onerror = (error) => {
-        console.error('Render Worker error:', error);
-        reject(error);
+      this.renderWorker.onerror = (event: ErrorEvent) => {
+        console.error('Render Worker error:', event);
+        const errorMsg = event.message || event.error?.message || 'Unknown worker error';
+        reject(new Error(`Render Worker failed: ${errorMsg}`));
       };
 
       // Timeout

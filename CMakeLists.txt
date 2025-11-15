@@ -232,7 +232,6 @@ if(BUILD_WASM)
             -sINITIAL_MEMORY=64MB
             -sMAXIMUM_MEMORY=512MB
             -sMODULARIZE=1
-            -sEXPORT_ES6=1
             "-sEXPORT_NAME=createNegentropic"
             "-sEXPORTED_FUNCTIONS=[\"_malloc\",\"_free\",\"_neg_create\",\"_neg_step\",\"_neg_get_state_json\",\"_neg_get_state_binary\",\"_neg_get_state_binary_size\",\"_neg_get_state_hash\",\"_neg_reset_from_binary\",\"_neg_destroy\"]"
             "-sEXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\"]"

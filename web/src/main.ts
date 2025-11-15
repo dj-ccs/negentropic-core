@@ -9,7 +9,8 @@ import {
   Color,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
-  Ion
+  Ion,
+  createWorldImagery
 } from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import type {
@@ -147,12 +148,17 @@ class GeoV1Application {
     console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
 
     try {
-      // FIX: Use Cesium Ion default imagery (Bing Maps)
-      // Since Ion token is configured, this provides reliable, high-quality imagery
-      console.log('Creating Cesium Viewer with Ion imagery...');
+      // FIX: Explicitly create Ion world imagery and pass to Viewer constructor
+      // This is THE FIX for invisible globes (see docs/CESIUM_GUIDE.md)
+      // createWorldImagery() returns a promise that resolves to Ion's default imagery
+      console.log('Creating Ion world imagery provider...');
+      const imageryProvider = await createWorldImagery();
+      console.log('✓ Ion imagery provider created:', imageryProvider.constructor?.name || 'Unknown');
+
+      console.log('Creating Cesium Viewer with explicit Ion imagery...');
       this.viewer = new Viewer(container, {
         baseLayerPicker: false,        // Disable UI picker
-        // Don't set imageryProvider - let Cesium use Ion default (Bing Maps)
+        imageryProvider: imageryProvider, // CRITICAL: Explicitly pass imagery provider
         timeline: false,
         animation: false,
         geocoder: true,
@@ -247,6 +253,27 @@ class GeoV1Application {
             if (layer && layer.imageryProvider) {
               console.log('✓ Imagery provider is now available!');
               console.log('[DEBUG] Provider type:', layer.imageryProvider.constructor?.name || 'Unknown');
+              console.log('[DEBUG] Full imagery layer state:', {
+                show: layer.show,
+                alpha: layer.alpha,
+                brightness: layer.brightness,
+                contrast: layer.contrast,
+                ready: layer.ready,
+                providerReady: layer.imageryProvider.ready,
+              });
+
+              // Check if layer is visible
+              if (!layer.show) {
+                console.error('❌ Imagery layer show is FALSE - forcing to true');
+                layer.show = true;
+              }
+              if (layer.alpha < 1.0) {
+                console.warn('⚠ Imagery layer alpha is', layer.alpha, '- forcing to 1.0');
+                layer.alpha = 1.0;
+              }
+
+              // Force a render
+              this.viewer!.scene.requestRender();
             } else {
               setTimeout(checkProvider, 100);
             }

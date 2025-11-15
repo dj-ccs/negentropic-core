@@ -148,15 +148,12 @@ class GeoV1Application {
     console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
 
     try {
-      // Create OpenStreetMap imagery provider BEFORE viewer creation
-      const osmProvider = new OpenStreetMapImageryProvider({
-        url: 'https://a.tile.openstreetmap.org/'
-      });
-
+      // Create viewer with base layer disabled - we'll add imagery manually
       this.viewer = new Viewer(container, {
         timeline: false,
         animation: false,
-        baseLayerPicker: false, // Disable to use custom imagery provider
+        baseLayerPicker: false,
+        baseLayer: false, // CRITICAL: Disable base layer to add custom imagery
         geocoder: true,
         homeButton: true,
         sceneModePicker: true,
@@ -165,8 +162,6 @@ class GeoV1Application {
         infoBox: false,
         requestRenderMode: false, // Continuous rendering for 60 FPS
         maximumRenderTimeChange: Infinity,
-        // NOTE: imageryProvider option not supported in this Cesium version
-        // We'll add the imagery layer explicitly after viewer creation
       });
 
       // Expose viewer globally for debugging
@@ -201,25 +196,47 @@ class GeoV1Application {
         console.warn('⚠ Globe is not enabled in the scene!');
       }
 
-      // CRITICAL FIX: Explicitly add OSM imagery layer if not already added
-      // When baseLayerPicker is false, the imageryProvider constructor option is sometimes ignored
-      if (this.viewer.imageryLayers.length === 0) {
-        console.log('Adding OSM imagery layer explicitly...');
-        this.viewer.imageryLayers.addImageryProvider(osmProvider);
-      }
+      // CRITICAL FIX: Add OSM imagery provider asynchronously
+      console.log('Creating OpenStreetMap imagery provider...');
+      const osmProvider = new OpenStreetMapImageryProvider({
+        url: 'https://a.tile.openstreetmap.org/'
+      });
 
-      console.log('✓ OpenStreetMap imagery provider configured');
+      console.log('Adding OSM imagery layer...');
+      const imageryLayer = this.viewer.imageryLayers.addImageryProvider(osmProvider);
+
+      console.log('✓ OpenStreetMap imagery layer added');
       console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
 
       // Debug: Check imagery layer state
-      if (this.viewer.imageryLayers.length > 0) {
-        const layer = this.viewer.imageryLayers.get(0);
-        console.log('[DEBUG] Imagery layer 0 details:', {
-          show: layer.show,
-          alpha: layer.alpha,
-          ready: layer.ready,
-          imageryProvider: layer.imageryProvider?.constructor?.name || 'Unknown',
-        });
+      console.log('[DEBUG] Imagery layer details:', {
+        show: imageryLayer.show,
+        alpha: imageryLayer.alpha,
+        brightness: imageryLayer.brightness,
+        contrast: imageryLayer.contrast,
+        ready: imageryLayer.ready,
+        providerReady: osmProvider.ready,
+        providerType: osmProvider.constructor?.name || 'Unknown',
+      });
+
+      // Add error handler for imagery loading failures
+      osmProvider.errorEvent.addEventListener((error: any) => {
+        console.error('❌ OSM Imagery provider error:', error);
+      });
+
+      // Monitor when imagery becomes ready
+      if (!osmProvider.ready) {
+        console.log('⏳ Waiting for OSM imagery provider to become ready...');
+        const checkReady = () => {
+          if (osmProvider.ready) {
+            console.log('✓ OSM imagery provider is now ready!');
+          } else {
+            setTimeout(checkReady, 100);
+          }
+        };
+        checkReady();
+      } else {
+        console.log('✓ OSM imagery provider is already ready');
       }
 
       // Set initial camera position

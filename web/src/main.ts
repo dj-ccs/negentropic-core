@@ -3,7 +3,7 @@
  * Thread 1 (Main): Orchestrates Cesium globe, creates SAB, spawns workers
  */
 
-import { Viewer, Cartesian3, Color, ScreenSpaceEventHandler, ScreenSpaceEventType } from 'cesium';
+import { Viewer, Cartesian3, Color, ScreenSpaceEventHandler, ScreenSpaceEventType, Ion } from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import type {
   GridSpec,
@@ -11,6 +11,17 @@ import type {
   FieldOffsets,
   PerformanceMetrics
 } from './types/geo-api';
+
+// Configure Cesium Ion token
+const CESIUM_ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN;
+if (CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== 'your_token_here') {
+  Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+  console.log('✓ Cesium Ion token configured');
+} else {
+  console.warn('⚠ No Cesium Ion token configured. Using default token (limited features)');
+  console.warn('  Get your free token at: https://cesium.com/ion/tokens');
+  console.warn('  Add it to web/.env as: VITE_CESIUM_ION_TOKEN=your_token');
+}
 
 // Import worker URLs (Vite will handle bundling)
 import CoreWorkerURL from './workers/core-worker?worker&url';

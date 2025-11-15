@@ -718,10 +718,10 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
   }
 };
 
-// Signal that worker is ready
+// Signal that worker script is loaded (but deck.gl not yet loaded)
 try {
-  postMessage({ type: 'ready' });
-  console.log('Render Worker initialized');
+  postMessage({ type: 'worker-loaded' });
+  console.log('Render Worker script loaded, awaiting init...');
 } catch (error) {
   console.error('Render Worker failed to initialize:', error);
   postMessage({

@@ -382,6 +382,6 @@ self.onmessage = async (e: MessageEvent<CoreWorkerMessage>) => {
   }
 };
 
-// Signal that worker is ready
-postMessage({ type: 'ready' });
-console.log('Core Worker initialized');
+// Signal that worker script is loaded (but WASM not yet loaded)
+postMessage({ type: 'worker-loaded' });
+console.log('Core Worker script loaded, awaiting init...');

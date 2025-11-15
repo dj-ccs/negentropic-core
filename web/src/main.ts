@@ -276,13 +276,18 @@ class GeoV1Application {
         const { type, payload } = e.data;
 
         switch (type) {
-          case 'ready':
-            console.log('✓ Core Worker ready');
-            // Transfer SAB to worker
+          case 'worker-loaded':
+            console.log('✓ Core Worker script loaded');
+            // Transfer SAB to worker for initialization
             this.coreWorker!.postMessage({
               type: 'init',
               payload: { sab: this.sab },
             });
+            // Don't resolve yet - wait for 'ready' after WASM loads
+            break;
+
+          case 'ready':
+            console.log('✓ Core Worker fully initialized (WASM loaded)');
             resolve();
             break;
 
@@ -304,8 +309,8 @@ class GeoV1Application {
         reject(new Error(`Core Worker failed: ${errorMsg}`));
       };
 
-      // Timeout
-      setTimeout(() => reject(new Error('Core Worker timeout')), 10000);
+      // Timeout increased to 30s to allow for WASM loading
+      setTimeout(() => reject(new Error('Core Worker timeout')), 30000);
     });
   }
 
@@ -321,10 +326,10 @@ class GeoV1Application {
         const { type, payload } = e.data;
 
         switch (type) {
-          case 'ready':
-            console.log('✓ Render Worker ready');
+          case 'worker-loaded':
+            console.log('✓ Render Worker script loaded');
 
-            // Transfer SAB and OffscreenCanvas to worker (ONLY ONCE)
+            // Transfer SAB and OffscreenCanvas to worker for initialization
             if (!canvasTransferred) {
               const canvas = document.getElementById('overlay-canvas') as HTMLCanvasElement;
               const offscreen = canvas.transferControlToOffscreen();
@@ -339,8 +344,13 @@ class GeoV1Application {
               }, [offscreen]);
 
               canvasTransferred = true;
-              resolve();
             }
+            // Don't resolve yet - wait for 'ready' after deck.gl loads
+            break;
+
+          case 'ready':
+            console.log('✓ Render Worker fully initialized (deck.gl loaded)');
+            resolve();
             break;
 
           case 'metrics':
@@ -361,8 +371,8 @@ class GeoV1Application {
         reject(new Error(`Render Worker failed: ${errorMsg}`));
       };
 
-      // Timeout
-      setTimeout(() => reject(new Error('Render Worker timeout')), 10000);
+      // Timeout increased to 30s to allow for deck.gl loading
+      setTimeout(() => reject(new Error('Render Worker timeout')), 30000);
     });
   }
 

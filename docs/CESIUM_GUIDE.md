@@ -38,8 +38,8 @@ const viewer = new Viewer('cesiumContainer', {
   imageryProvider: new OpenStreetMapImageryProvider({
     url: 'https://a.tile.openstreetmap.org/' // Free, no API key needed
   }),
-  baseLayerPicker: false,  // Disable UI picker (use for single layer)
-  baseLayer: true,  // Enable base layer (default: true; false = invisible globe!)
+  baseLayerPicker: false,  // Disable UI picker; imageryProvider becomes base layer automatically
+  // NOTE: There is NO 'baseLayer' option! Passing imageryProvider automatically adds it as base layer.
 
   // ============================================
   // PERFORMANCE/RENDERING
@@ -77,7 +77,7 @@ viewer.scene.render(); // Force immediate render
 ### Key Points
 
 - **`imageryProvider`**: Pass directly to constructor to guarantee it becomes layer 0. This is THE FIX for invisible globes.
-- **`baseLayerPicker: false`**: Disables UI picker but keeps base layer functionality. DO NOT set `baseLayer: false` - it hides the globe!
+- **`baseLayerPicker: false`**: Disables UI picker. When combined with `imageryProvider`, it automatically becomes the base layer.
 - **`requestRenderMode: false`**: Continuous rendering at 60 FPS. Critical for real-time visualization.
 - **Deprecated**: `imageryProviderViewModels` (use `imageryProvider` instead in v1.120+).
 
@@ -157,7 +157,7 @@ if (viewer.imageryLayers.length > 0) {
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `ready: false` forever | Provider not attached to viewer | Pass to constructor or use `addImageryProvider()` |
-| `imageryLayers.length = 0` | No base layer configured | Verify `imageryProvider` is set and `baseLayer` is not false |
+| `imageryLayers.length = 0` | No base layer configured | Verify `imageryProvider` is passed to Viewer constructor |
 | Tiles not loading (404) | Invalid URL or CORS block | Use `https://a.tile.openstreetmap.org/`; check Network tab |
 | COEP blocks OSM tiles | Cross-origin policy restriction | Add Vite proxy or serve tiles from same origin |
 | Slow/blank on mobile | High zoom level or cache miss | Set `maximumLevel: 14`; hard refresh (Cmd+Shift+R) |

@@ -72,8 +72,8 @@ export default defineConfig({
           });
         },
       },
-      // This proxy forwards API calls to the Cesium Ion server,
-      // making them appear as same-origin to the browser.
+      // Proxy Cesium Ion API calls to appear as same-origin, preventing COEP blocking.
+      // This allows IonImageryProvider to load successfully under strict COEP requirements.
       '/cesium-ion-api': {
         target: 'https://api.cesium.com/',
         changeOrigin: true,

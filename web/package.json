@@ -32,7 +32,7 @@
     "eslint": "^8.57.0",
     "typescript": "^5.5.2",
     "vite": "^5.3.1",
-    "vite-plugin-cesium": "^1.2.22",
+    "vite-plugin-static-copy": "^1.0.6",
     "vite-plugin-wasm": "^3.3.0"
   },
   "engines": {

@@ -148,10 +148,15 @@ class GeoV1Application {
     console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
 
     try {
+      // Create OpenStreetMap imagery provider BEFORE viewer creation
+      const osmProvider = new OpenStreetMapImageryProvider({
+        url: 'https://a.tile.openstreetmap.org/'
+      });
+
       this.viewer = new Viewer(container, {
         timeline: false,
         animation: false,
-        baseLayerPicker: true,
+        baseLayerPicker: false, // Disable to use custom imagery provider
         geocoder: true,
         homeButton: true,
         sceneModePicker: true,
@@ -160,6 +165,8 @@ class GeoV1Application {
         infoBox: false,
         requestRenderMode: false, // Continuous rendering for 60 FPS
         maximumRenderTimeChange: Infinity,
+        // Use OSM as the base imagery layer from the start
+        imageryProvider: osmProvider,
       });
 
       // Expose viewer globally for debugging
@@ -194,36 +201,9 @@ class GeoV1Application {
         console.warn('⚠ Globe is not enabled in the scene!');
       }
 
-      // Add OpenStreetMap as fallback imagery provider
-      // The default Cesium Ion imagery often fails due to COEP restrictions
-      // OSM is more reliable for local development
-      console.log('Adding OpenStreetMap imagery provider as fallback...');
-      try {
-        const osmProvider = new OpenStreetMapImageryProvider({
-          url: 'https://a.tile.openstreetmap.org/'
-        });
-
-        // Remove default Cesium Ion imagery layer (which may fail due to COEP)
-        if (this.viewer.imageryLayers.length > 0) {
-          const defaultLayer = this.viewer.imageryLayers.get(0);
-          console.log('Removing default imagery layer');
-          this.viewer.imageryLayers.remove(defaultLayer);
-        }
-
-        // Add OSM layer as primary imagery
-        const osmLayer = this.viewer.imageryLayers.addImageryProvider(osmProvider);
-        console.log('✓ OpenStreetMap imagery provider added');
-
-        // Wait for imagery to be ready
-        osmProvider.readyPromise.then(() => {
-          console.log('✓ OpenStreetMap imagery ready to render');
-        }).catch((error) => {
-          console.error('OSM imagery ready promise failed:', error);
-        });
-      } catch (error) {
-        console.error('Failed to add OSM imagery provider:', error);
-        console.warn('Globe will display with base color only');
-      }
+      // OSM imagery already added via imageryProvider option
+      console.log('✓ OpenStreetMap imagery provider configured');
+      console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
 
       // Set initial camera position
       console.log('Setting initial camera view...');

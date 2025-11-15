@@ -54,6 +54,37 @@ if (typeof ResizeObserver === 'undefined') {
   };
 }
 
+// deck.gl accesses window for devicePixelRatio and other browser APIs
+// @ts-ignore
+if (typeof window === 'undefined') {
+  // @ts-ignore
+  self.window = {
+    devicePixelRatio: 1,
+    innerWidth: 800,
+    innerHeight: 600,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    matchMedia: () => ({ matches: false, addListener: () => {}, removeListener: () => {} }),
+  };
+}
+
+// deck.gl tries to access document for DOM manipulation
+// @ts-ignore
+if (typeof document === 'undefined') {
+  // @ts-ignore
+  self.document = {
+    createElement: (tag: string) => ({
+      style: {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      appendChild: () => {},
+      removeChild: () => {},
+    }),
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+}
+
 import type {
   RenderWorkerMessage,
   FieldOffsets,
@@ -62,7 +93,7 @@ import type {
 
 // Deck.gl modules - loaded dynamically
 let Deck: any;
-let GridLayer: any;
+let ScatterplotLayer: any;
 let deckModulesLoaded = false;
 
 // ============================================================================
@@ -101,7 +132,7 @@ async function loadDeckModules() {
     const deckCore = await import('@deck.gl/core');
     const deckLayers = await import('@deck.gl/layers');
     Deck = deckCore.Deck;
-    GridLayer = deckLayers.GridLayer;
+    ScatterplotLayer = deckLayers.ScatterplotLayer;
     deckModulesLoaded = true;
     console.log('✓ Deck.gl modules loaded in Render Worker');
   } catch (error) {
@@ -260,22 +291,26 @@ function updateLayers(fieldData: Float32Array) {
   const header = readHeader();
   if (!header) return;
 
-  // Convert field data to grid cells for GridLayer
+  // Convert field data to grid points for ScatterplotLayer
   const gridData = convertFieldToGrid(fieldData, header);
 
   // Define color scale based on field type
   const [minVal, maxVal] = getFieldRange(currentField);
 
   const layers = [
-    new GridLayer({
+    new ScatterplotLayer({
       id: 'field-grid',
       data: gridData,
       pickable: true,
-      extruded: false,
-      cellSize: getCellSize(header),
+      stroked: false,
+      filled: true,
+      radiusScale: 1000,
+      radiusMinPixels: 2,
+      radiusMaxPixels: 100,
       getPosition: (d: any) => d.position,
+      getRadius: (d: any) => 500, // 500 meters radius per point
       getFillColor: (d: any) => valueToColor(d.value, minVal, maxVal),
-      opacity: 0.7,
+      opacity: 0.8,
     }),
   ];
 

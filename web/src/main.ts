@@ -211,6 +211,17 @@ class GeoV1Application {
       console.log('✓ OpenStreetMap imagery provider configured');
       console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
 
+      // Debug: Check imagery layer state
+      if (this.viewer.imageryLayers.length > 0) {
+        const layer = this.viewer.imageryLayers.get(0);
+        console.log('[DEBUG] Imagery layer 0 details:', {
+          show: layer.show,
+          alpha: layer.alpha,
+          ready: layer.ready,
+          imageryProvider: layer.imageryProvider?.constructor?.name || 'Unknown',
+        });
+      }
+
       // Set initial camera position
       console.log('Setting initial camera view...');
       this.viewer.camera.setView({
@@ -231,6 +242,20 @@ class GeoV1Application {
         backgroundColor: this.viewer.scene.backgroundColor,
         canvasWidth: this.viewer.canvas.width,
         canvasHeight: this.viewer.canvas.height,
+        canvasStyle: this.viewer.canvas.style.cssText,
+        containerStyle: container.style.cssText,
+      });
+
+      // Debug: Check if Cesium canvas is actually in the DOM and visible
+      const cesiumCanvas = this.viewer.canvas;
+      const computedStyle = window.getComputedStyle(cesiumCanvas);
+      console.log('[DEBUG] Cesium canvas computed styles:', {
+        display: computedStyle.display,
+        visibility: computedStyle.visibility,
+        opacity: computedStyle.opacity,
+        zIndex: computedStyle.zIndex,
+        width: computedStyle.width,
+        height: computedStyle.height,
       });
 
     } catch (error) {

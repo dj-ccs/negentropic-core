@@ -335,6 +335,26 @@ buildModuleUrl.setBaseUrl('/cesium/');
 
 **Full Guide**: [web.dev COOP/COEP](https://web.dev/articles/coop-coep)
 
+### Troubleshooting Ion Imagery (Lessons from Nov 2025)
+
+| Issue | Symptom | Root Cause | Fix |
+|-------|---------|-----------|-----|
+| **Invisible globe** | Stars visible, clickable, but no Earth | Imagery provider not passed to constructor | Use `createWorldImagery()` and pass to Viewer constructor |
+| **Cannot read 'ready'** | Crash on line accessing `provider.ready` | Provider undefined during init | Add null check: `if (provider) { ... }` before accessing properties |
+| **Imagery layer count = 0** | Console shows 0 imagery layers | No base layer configured | Verify `imageryProvider` passed to constructor, check console |
+| **Provider type undefined** | Unknown provider type in logs | Provider not initialized | Wait for provider with polling: `setTimeout(checkProvider, 100)` |
+
+**Debug checklist:**
+```typescript
+// After viewer creation
+console.log('Imagery layers:', viewer.imageryLayers.length); // Must be > 0
+const layer = viewer.imageryLayers.get(0);
+console.log('Provider:', layer.imageryProvider?.constructor?.name); // Should be IonImageryProvider
+console.log('Ready:', layer.imageryProvider?.ready); // Should become true
+console.log('Show:', layer.show); // Must be true
+console.log('Alpha:', layer.alpha); // Should be 1.0
+```
+
 ---
 
 ## 5. OffscreenCanvas & Worker Rendering Tips
@@ -450,14 +470,51 @@ if (viewer.imageryLayers.length === 0) {
 
 ---
 
-## Implementation in GEO-v1
+## Implementation in GEO-v1 (November 2025 Update)
 
-See `web/src/main.ts:141-281` for our production implementation:
+### Production Fix: Explicit Ion Imagery Creation
 
-- **Viewer setup**: Lines 154-173
-- **Globe hardening**: Lines 179-197
-- **Critical checks**: Lines 206-211
-- **Ready verification**: Lines 227-239
+After encountering the invisible globe issue (stars visible, no Earth), we implemented the following fix in `web/src/main.ts`:
+
+```typescript
+import { Viewer, Ion, IonImageryProvider } from 'cesium';
+
+// Configure Ion token (required)
+Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+
+// CRITICAL: Create imagery provider BEFORE Viewer
+// Asset ID 2 = Bing Maps Aerial with Labels (Ion default)
+const imageryProvider = await IonImageryProvider.fromAssetId(2);
+
+const viewer = new Viewer('cesiumContainer', {
+  baseLayerPicker: false,
+  imageryProvider: imageryProvider,  // THE FIX - pass explicitly
+  requestRenderMode: false,
+  // ... other options
+});
+
+// Post-creation hardening
+viewer.scene.globe.show = true;
+viewer.scene.render();
+```
+
+**Why this works:**
+- `IonImageryProvider.fromAssetId(2)` returns Cesium Ion's default Bing Maps imagery
+- Passing to constructor guarantees it becomes layer 0
+- Avoids async initialization race conditions
+- Works reliably with COEP/COOP headers
+
+**Available Ion Asset IDs:**
+- `2` - Bing Maps Aerial with Labels (default)
+- `3` - Bing Maps Aerial
+- `4` - Bing Maps Road
+
+See `web/src/main.ts:150-172` for our production implementation:
+
+- **Imagery provider creation**: Lines 154-156
+- **Viewer setup**: Lines 158-172
+- **Globe hardening**: Lines 176-188
+- **Diagnostics & auto-correction**: Lines 212-278
 
 ---
 
@@ -472,4 +529,4 @@ See `web/src/main.ts:141-281` for our production implementation:
 
 **Attribution**: This guide synthesizes Cesium v1.120+ documentation with fixes from Grok (xAI), community forums, and production debugging in the Negentropic-Core GEO-v1 pipeline.
 
-**Last Updated**: 2025-11-15
+**Last Updated**: 2025-11-15 (Ion imagery fix & troubleshooting section added)

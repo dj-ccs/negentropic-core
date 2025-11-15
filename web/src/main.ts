@@ -10,7 +10,7 @@ import {
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   Ion,
-  createWorldImagery
+  IonImageryProvider
 } from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import type {
@@ -148,11 +148,11 @@ class GeoV1Application {
     console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
 
     try {
-      // FIX: Explicitly create Ion world imagery and pass to Viewer constructor
+      // FIX: Explicitly create Ion imagery provider and pass to Viewer constructor
       // This is THE FIX for invisible globes (see docs/CESIUM_GUIDE.md)
-      // createWorldImagery() returns a promise that resolves to Ion's default imagery
-      console.log('Creating Ion world imagery provider...');
-      const imageryProvider = await createWorldImagery();
+      // IonImageryProvider.fromAssetId() creates Ion imagery (asset 2 = Bing Maps)
+      console.log('Creating Ion imagery provider...');
+      const imageryProvider = await IonImageryProvider.fromAssetId(2);
       console.log('✓ Ion imagery provider created:', imageryProvider.constructor?.name || 'Unknown');
 
       console.log('Creating Cesium Viewer with explicit Ion imagery...');

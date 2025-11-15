@@ -35,10 +35,16 @@ Main Thread (CesiumJS + UI)
 ## 3. CesiumJS Globe (Main Thread)
 - **Viewer Creation** (main.ts):
   ```ts
+  // CRITICAL: Explicitly create Ion imagery provider before Viewer
+  // This is THE FIX for invisible globes - see Common Pitfalls section
+  import { IonImageryProvider } from 'cesium';
+
+  // Asset ID 2 = Bing Maps Aerial with Labels (Ion default)
+  const imageryProvider = await IonImageryProvider.fromAssetId(2);
+
   const viewer = new Viewer('cesiumContainer', {
     baseLayerPicker: false,
-    // Don't set imageryProvider - let Cesium use Ion default (Bing Maps)
-    // Requires Ion.defaultAccessToken to be set
+    imageryProvider: imageryProvider,  // MUST pass explicitly to guarantee layer 0
     timeline: false,
     animation: false,
     geocoder: true,
@@ -47,6 +53,10 @@ Main Thread (CesiumJS + UI)
     requestRenderMode: false,
     // ... other options
   });
+
+  // Post-creation hardening
+  viewer.scene.globe.show = true;
+  viewer.scene.render();
   ```
 - **Click → ROI**:
   ```ts
@@ -90,35 +100,29 @@ Main Thread (CesiumJS + UI)
   ```
 - **Validation**: IoU between simulated water and Prithvi flood mask.
 
-## 6. COEP/COOP & Proxy (vite.config.ts)
+## 6. COEP/COOP Headers (vite.config.ts)
 ```ts
 server: {
   headers: {
     'Cross-Origin-Embedder-Policy': 'require-corp',
     'Cross-Origin-Opener-Policy': 'same-origin',
-  },
-  proxy: {
-    '/osm-tiles': {
-      target: 'https://a.tile.openstreetmap.org',
-      changeOrigin: true,
-      rewrite: path => path.replace(/^\/osm-tiles/, ''),
-      configure: proxy => proxy.on('proxyRes', res => {
-        res.headers['cross-origin-resource-policy'] = 'cross-origin';
-      })
-    }
   }
 }
 ```
+**Note**: No proxy needed for Cesium Ion imagery - tiles are served with proper CORS headers.
+OSM tiles require proxy but Ion is more reliable in production.
 
 ## 7. Common Pitfalls & Quick Fixes
 | Symptom | Fix |
 |--------|-----|
-| Black/transparent globe | Ensure Cesium Ion token is configured (`Ion.defaultAccessToken`). Don't set `imageryProvider: false` |
+| **Invisible globe (stars visible, no Earth)** | **CRITICAL FIX**: Use `createWorldImagery()` and pass to Viewer constructor. See code in Section 3. |
+| Cannot read properties of undefined (reading 'ready') | Add null check before accessing `imageryProvider.ready` - provider may be undefined during initialization |
+| Black/transparent globe | Ensure Cesium Ion token is configured (`Ion.defaultAccessToken`). Verify `imageryLayers.length > 0` |
 | COEP blocks Cesium assets | Headers already configured in `vite.config.ts` |
 | WASM "HEAPU8 undefined" | Export HEAP* in `EXPORTED_RUNTIME_METHODS` |
 | deck.gl errors in worker | Polyfill `ResizeObserver`, `IntersectionObserver`, `Hammer`, canvas methods |
 | Clickable but no visuals | `viewer.scene.globe.show = true; viewer.scene.requestRender();` |
-| Imagery provider not ready | Use Cesium Ion default imagery (requires valid token) instead of custom providers |
+| OSM/UrlTemplateImageryProvider not ready | Don't use OSM with COEP/COOP - use Ion imagery instead (more reliable) |
 
 ## 8. Future-Proof Extensions
 - **WebGPU**: Replace WebGL2 with `navigator.gpu` in render worker (2026 target).
@@ -129,6 +133,14 @@ server: {
 
 This guide lives in `/docs/INTERCONNECTION_GUIDE.md`.
 Update it every sprint.
+
+**Last Updated**: 2025-11-15 (Switched to explicit Ion imagery creation)
+
+**Recent Changes (Nov 2025):**
+- Switched from OSM to Cesium Ion imagery (more reliable with COEP/COOP)
+- Added `createWorldImagery()` explicit provider creation (fixes invisible globe)
+- Removed OSM proxy configuration (no longer needed)
+- Added null checks for imagery provider (prevents initialization crashes)
 
 **We now have a living, breathing Earth in the browser.**
 

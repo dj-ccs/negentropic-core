@@ -52,20 +52,23 @@ const viewer = new Viewer(container, {
 **Note:** Initial implementation incorrectly used `createWorldImagery()` which doesn't exist in Cesium v1.120.
 Corrected to use `IonImageryProvider.fromAssetId(2)` which is the proper API.
 
-### Fix 3: baseLayer Option + Fallback Layer Addition (Current commit)
-Added `baseLayer: true` and fallback explicit layer addition:
+### Fix 3: Remove baseLayer Option + Proper Fallback (FINAL CORRECT SOLUTION)
+
+**THE BUG:** Previous attempt added `baseLayer: true` which **doesn't exist** in the Cesium API and caused crash:
+`TypeError: Cannot create property '_layerIndex' on boolean 'true'`
+
+**THE CORRECT PATTERN:**
 
 ```typescript
 const imageryProvider = await IonImageryProvider.fromAssetId(2);
 
 const viewer = new Viewer(container, {
-  imageryProvider: imageryProvider,
-  baseLayer: true,           // Enable base rendering (CRITICAL)
+  imageryProvider: imageryProvider,  // Pass provider object (NOT boolean!)
   baseLayerPicker: false,
-  // ...
+  // ... NO baseLayer option!
 });
 
-// FALLBACK: In CesiumJS v1.120+, passing to constructor may not always add layer 0
+// FALLBACK: In CesiumJS v1.120+, verify constructor added the layer
 if (viewer.imageryLayers.length === 0) {
   console.warn('⚠ Imagery not added via constructor, adding explicitly...');
   viewer.imageryLayers.addImageryProvider(imageryProvider);
@@ -76,9 +79,11 @@ viewer.scene.requestRender();
 ```
 
 **Why this works:**
-- `baseLayer: true` enables the base rendering pipeline (CRITICAL for visibility)
-- Fallback `addImageryProvider()` ensures layer is added if constructor method failed
-- `requestRender()` forces immediate render instead of waiting for next frame
+- Passing `imageryProvider` object to constructor is the standard Cesium pattern
+- Constructor should add it as layer 0 automatically
+- Fallback `addImageryProvider()` only runs if constructor method failed
+- `requestRender()` forces immediate render to show globe
+- **NO `baseLayer: true`** - this option doesn't exist in the Cesium API!
 
 ### Fix 4: Enhanced Diagnostics (Commit 84e4cb7)
 Added comprehensive logging and auto-correction:
@@ -92,10 +97,10 @@ Added comprehensive logging and auto-correction:
 ### Code Changes
 - `web/src/main.ts`:
   - Lines 6-14: Import `IonImageryProvider` from cesium
-  - Lines 154-156: Create imagery provider with `IonImageryProvider.fromAssetId(2)`
-  - Lines 158-173: Viewer constructor with `baseLayer: true` option
-  - Lines 208-219: Fallback explicit layer addition if `imageryLayers.length === 0`
-  - Lines 220-285: Enhanced diagnostics and null checks
+  - Lines 159-161: Create imagery provider with `IonImageryProvider.fromAssetId(2)`
+  - Lines 163-177: Viewer constructor with `imageryProvider: imageryProvider` (NO baseLayer option!)
+  - Lines 210-227: Fallback explicit layer addition (only if `imageryLayers.length === 0`)
+  - Lines 229-244: Enhanced diagnostics and null checks (debug mode only)
 
 ### Documentation Updates
 - `docs/INTERCONNECTION_GUIDE.md`:
@@ -113,15 +118,17 @@ Added comprehensive logging and auto-correction:
 ## Key Learnings
 
 1. **Explicit is Better**: Always create and pass imagery providers explicitly to Viewer constructor
-2. **baseLayer Option**: Set `baseLayer: true` to enable base rendering pipeline (required in some CesiumJS versions)
-3. **Fallback Addition**: In CesiumJS v1.120+, constructor may not add layer - use `addImageryProvider()` as fallback
-4. **Async Awareness**: Imagery providers may not be immediately available - add null checks
-5. **Ion vs OSM**: Cesium Ion imagery is more reliable with COEP/COOP headers than OSM
-6. **Force Render**: Use `requestRender()` instead of `render()` to force immediate frame update
-7. **Diagnostics Matter**: Comprehensive logging helps identify initialization race conditions
-8. **Debug Mode**: Use conditional logging (e.g., `if (DEBUG)`) to reduce console noise in production
-9. **Timeout Polling**: Add timeout limits to polling functions to prevent infinite loops
-10. **Code Organization**: Extract complex monitoring logic into separate helper methods for clarity
+2. **NO baseLayer Option**: There is NO `baseLayer: true` option in Cesium API - this was a mistake that caused crashes!
+3. **Correct Pattern**: Pass `imageryProvider: providerObject` to constructor, then verify with fallback
+4. **Fallback Addition**: In CesiumJS v1.120+, constructor may not add layer - use `addImageryProvider()` as fallback
+5. **Async Awareness**: Imagery providers may not be immediately available - add null checks
+6. **Ion vs OSM**: Cesium Ion imagery is more reliable with COEP/COOP headers than OSM
+7. **Force Render**: Use `requestRender()` instead of `render()` to force immediate frame update
+8. **Diagnostics Matter**: Comprehensive logging helps identify initialization race conditions
+9. **Debug Mode**: Use conditional logging (e.g., `if (DEBUG)`) to reduce console noise in production
+10. **Timeout Polling**: Add timeout limits to polling functions to prevent infinite loops
+11. **Code Organization**: Extract complex monitoring logic into separate helper methods for clarity
+12. **API Verification**: Always verify constructor options against official Cesium documentation - avoid using non-existent options!
 
 ## Code Optimizations (Nov 15, 2025)
 
@@ -146,17 +153,43 @@ When verifying the fix, check:
 - [ ] Provider ready state transitions are logged
 - [ ] No crash on initialization
 
+## Final Resolution (Nov 15, 2025)
+
+### The `baseLayer: true` Crash
+
+After the initial fixes, a **new crash** was introduced:
+```
+TypeError: Cannot create property '_layerIndex' on boolean 'true'
+```
+
+**Root Cause:** In an attempt to fix the invisible globe, `baseLayer: true` was added to the Viewer constructor. However, **this option doesn't exist** in the Cesium API. Cesium tried to process the boolean `true` as an `ImageryLayer` object and crashed.
+
+**Final Fix:**
+1. **Removed** `baseLayer: true` option entirely
+2. **Kept** `imageryProvider: imageryProvider` (pass the provider object)
+3. **Kept** fallback logic to verify and add layer if constructor didn't
+
+This is the **correct, modern pattern** for CesiumJS v1.120+.
+
 ## Commits
 
+Previous work:
 ```
 55f0fc7 - [DOCS] Update guides with Ion imagery fixes and troubleshooting
 84e4cb7 - [FIX] Explicitly create Ion world imagery provider
 5a32dfc - [FIX] Add null check for imagery provider to prevent crash
+73cd8c9 - [FIX] Add baseLayer option and fallback imagery layer addition (INTRODUCED BUG)
+5448228 - [OPTIMIZE] Production-ready code cleanup and debug logging consolidation
+```
+
+Final fix (current branch):
+```
+6ffd102 - [FIX] Resolve Cesium initialization crash by removing conflicting baseLayer option
 ```
 
 ## Branch
 
-`claude/switch-cesium-ion-imagery-016ip39eF6K344sL1KcGodTG`
+`claude/fix-cesium-initialization-crash-01MNDdgux81SbZgunCUb3jnY`
 
 ## References
 

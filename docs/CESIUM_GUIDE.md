@@ -487,9 +487,8 @@ Ion.defaultAccessToken = CESIUM_ION_TOKEN;
 const imageryProvider = await IonImageryProvider.fromAssetId(2);
 
 const viewer = new Viewer('cesiumContainer', {
+  imageryProvider: imageryProvider,  // THE FIX - pass provider object explicitly
   baseLayerPicker: false,
-  imageryProvider: imageryProvider,  // THE FIX - pass explicitly
-  baseLayer: true,                   // Enable base rendering (CRITICAL)
   requestRenderMode: false,
   // ... other options
 });
@@ -507,24 +506,25 @@ viewer.scene.requestRender();  // Force first render
 
 **Why this works:**
 - `IonImageryProvider.fromAssetId(2)` returns Cesium Ion's default Bing Maps imagery
-- `baseLayer: true` enables base rendering pipeline (CRITICAL for visibility)
-- Passing to constructor attempts to add layer 0 (primary method)
-- Fallback `addImageryProvider()` ensures layer is added if constructor failed
+- Passing the provider object to constructor tells Cesium to add it as layer 0
+- Fallback `addImageryProvider()` ensures layer is added if constructor method failed
 - `requestRender()` forces immediate render to show globe
 - Works reliably with COEP/COOP headers
+
+**IMPORTANT:** There is NO `baseLayer` boolean option in the Cesium Viewer constructor API. Passing `imageryProvider` directly is the correct pattern.
 
 **Available Ion Asset IDs:**
 - `2` - Bing Maps Aerial with Labels (default)
 - `3` - Bing Maps Aerial
 - `4` - Bing Maps Road
 
-See `web/src/main.ts:150-220` for our production implementation:
+See `web/src/main.ts:159-227` for our production implementation:
 
-- **Imagery provider creation**: Lines 154-156
-- **Viewer setup**: Lines 158-173 (includes `baseLayer: true`)
-- **Globe hardening**: Lines 176-193
-- **Fallback layer addition**: Lines 208-219 (if constructor didn't add layer)
-- **Diagnostics & auto-correction**: Lines 220-285
+- **Imagery provider creation**: Lines 159-161 (await IonImageryProvider.fromAssetId(2))
+- **Viewer setup**: Lines 163-177 (pass imageryProvider object to constructor)
+- **Globe hardening**: Lines 189-199 (force visibility settings)
+- **Fallback layer addition**: Lines 210-227 (only if constructor didn't add layer)
+- **Diagnostics & monitoring**: Lines 229-244 (debug mode only)
 
 ---
 

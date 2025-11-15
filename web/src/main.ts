@@ -160,10 +160,10 @@ class GeoV1Application {
       const imageryProvider = await IonImageryProvider.fromAssetId(2);
       if (DEBUG) console.log('✓ Ion imagery provider created:', imageryProvider.constructor?.name || 'Unknown');
 
-      if (DEBUG) console.log('Creating Cesium Viewer with manual layer management...');
+      if (DEBUG) console.log('Creating Cesium Viewer...');
       this.viewer = new Viewer(container, {
-        baseLayerPicker: false,        // Disable UI picker
-        imageryProvider: false,        // CRITICAL: Manage layers manually (set to false)
+        imageryProvider: imageryProvider, // Pass provider object directly to constructor
+        baseLayerPicker: false,           // Disable UI picker
         timeline: false,
         animation: false,
         geocoder: true,
@@ -172,7 +172,7 @@ class GeoV1Application {
         navigationHelpButton: false,
         selectionIndicator: false,
         infoBox: false,
-        requestRenderMode: false, // Continuous rendering for 60 FPS
+        requestRenderMode: false,    // Continuous rendering for 60 FPS
         maximumRenderTimeChange: Infinity,
       });
 
@@ -207,15 +207,21 @@ class GeoV1Application {
         console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
       }
 
-      // CRITICAL: Add imagery layer manually (imageryProvider was set to false in constructor)
-      // See docs/CESIUM_GUIDE.md for pattern explanation
-      if (DEBUG) console.log('Adding Ion imagery layer explicitly...');
-      this.viewer.imageryLayers.addImageryProvider(imageryProvider);
-
-      // Verify layer was added successfully
+      // VERIFICATION & FALLBACK: Check if constructor successfully added the imagery layer
+      // In CesiumJS v1.120+, passing imageryProvider to constructor *should* add it,
+      // but we verify and add explicitly as fallback if needed
       if (this.viewer.imageryLayers.length === 0) {
-        console.error('❌ CRITICAL: Failed to add imagery layer! Globe will be invisible.');
-        throw new Error('Imagery layers = 0 - globe initialization failed');
+        console.warn('⚠ Imagery not added via constructor, adding explicitly as fallback...');
+        this.viewer.imageryLayers.addImageryProvider(imageryProvider);
+
+        // If still zero after fallback, this is a critical error
+        if (this.viewer.imageryLayers.length === 0) {
+          console.error('❌ CRITICAL: Failed to add imagery layer! Globe will be invisible.');
+          throw new Error('Imagery layers = 0 - globe initialization failed');
+        }
+        console.log('✓ Imagery layer added via fallback method');
+      } else {
+        console.log('✓ Imagery layer added via constructor');
       }
 
       console.log('✓ Cesium globe initialized with', this.viewer.imageryLayers.length, 'imagery layer(s)');

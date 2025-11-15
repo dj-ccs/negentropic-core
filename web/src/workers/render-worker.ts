@@ -3,13 +3,16 @@
  * Runs deck.gl on OffscreenCanvas, reads SAB at 60 FPS
  */
 
-import { Deck } from '@deck.gl/core';
-import { GridLayer } from '@deck.gl/layers';
 import type {
   RenderWorkerMessage,
   FieldOffsets,
   SABHeader,
 } from '../types/geo-api';
+
+// Deck.gl modules - loaded dynamically
+let Deck: any;
+let GridLayer: any;
+let deckModulesLoaded = false;
 
 // ============================================================================
 // Worker State
@@ -36,10 +39,34 @@ let currentField: 'theta' | 'som' | 'vegetation' | 'temperature' = 'theta';
 let colorScale: [number, number] = [0, 1];
 
 // ============================================================================
+// Deck.gl Module Loading
+// ============================================================================
+
+async function loadDeckModules() {
+  if (deckModulesLoaded) return;
+
+  try {
+    console.log('Loading deck.gl modules...');
+    const deckCore = await import('@deck.gl/core');
+    const deckLayers = await import('@deck.gl/layers');
+    Deck = deckCore.Deck;
+    GridLayer = deckLayers.GridLayer;
+    deckModulesLoaded = true;
+    console.log('✓ Deck.gl modules loaded in Render Worker');
+  } catch (error) {
+    console.error('Failed to load deck.gl modules:', error);
+    throw new Error(`Deck.gl loading failed: ${String(error)}`);
+  }
+}
+
+// ============================================================================
 // Deck.gl Initialization
 // ============================================================================
 
 function initializeDeck(canvas: OffscreenCanvas) {
+  if (!deckModulesLoaded) {
+    throw new Error('Deck.gl modules not loaded');
+  }
   try {
     // Create a minimal WebGL context for deck.gl
     const gl = canvas.getContext('webgl2', {
@@ -307,6 +334,9 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
 
           console.log('Render Worker received SAB and OffscreenCanvas');
 
+          // Load deck.gl modules first
+          await loadDeckModules();
+
           // Initialize deck.gl
           initializeDeck(offscreenCanvas);
 
@@ -361,5 +391,13 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
 };
 
 // Signal that worker is ready
-postMessage({ type: 'ready' });
-console.log('Render Worker initialized');
+try {
+  postMessage({ type: 'ready' });
+  console.log('Render Worker initialized');
+} catch (error) {
+  console.error('Render Worker failed to initialize:', error);
+  postMessage({
+    type: 'error',
+    payload: { message: `Initialization failed: ${String(error)}` }
+  });
+}

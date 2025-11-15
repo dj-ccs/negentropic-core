@@ -10,7 +10,7 @@ import {
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   Ion,
-  OpenStreetMapImageryProvider
+  UrlTemplateImageryProvider
 } from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import type {
@@ -148,21 +148,25 @@ class GeoV1Application {
     console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
 
     try {
-      // Create OpenStreetMap imagery provider BEFORE viewer creation
-      // This is THE FIX: passing imageryProvider to constructor guarantees it's added as layer 0
+      // Create OSM imagery provider BEFORE viewer creation
+      // CRITICAL: Pass to Viewer constructor (docs/CESIUM_GUIDE.md line 103-107)
+      // Using UrlTemplateImageryProvider with proxy URL (OpenStreetMapImageryProvider doesn't support custom URLs)
       console.log('Creating OpenStreetMap imagery provider...');
-      const osmProvider = new OpenStreetMapImageryProvider({
+      const osmProvider = new UrlTemplateImageryProvider({
         // Use proxied URL to bypass COEP blocking (Vite proxy adds CORP headers)
-        url: '/osm-tiles/' // Proxied through Vite to https://a.tile.openstreetmap.org
+        url: '/osm-tiles/{z}/{x}/{y}.png', // OSM tile URL pattern via Vite proxy
+        credit: '© OpenStreetMap contributors'
       });
 
-      // Create viewer with OSM as the base imagery layer from the start
-      // DO NOT set baseLayer: false - it prevents proper globe initialization
+      // Create viewer with OSM as base imagery (see docs/CESIUM_GUIDE.md line 26-68)
+      // CRITICAL: Do NOT set baseLayer: false - it prevents imagery from being added!
+      console.log('Creating Cesium Viewer with OSM imagery...');
       this.viewer = new Viewer(container, {
+        imageryProvider: osmProvider, // THE FIX: Pass to constructor (CESIUM_GUIDE.md line 433)
+        baseLayerPicker: false, // Disable UI picker, but KEEP base layer functionality
+        // baseLayer: true is default - DO NOT set to false!
         timeline: false,
         animation: false,
-        baseLayerPicker: false, // Disable picker UI, but keep base layer functionality
-        imageryProvider: osmProvider, // Use OSM as base layer
         geocoder: true,
         homeButton: true,
         sceneModePicker: true,

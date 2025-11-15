@@ -304,17 +304,99 @@ response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
 
 ## Troubleshooting
 
+### Globe Not Visible (Black Screen)
+
+**Symptoms**:
+- Globe ellipsoid exists (clicks register locations)
+- Dark/black screen with no visible Earth
+- Cesium UI controls visible but no globe rendering
+
+**Diagnosis**:
+```javascript
+// In browser console:
+viewer.scene.primitives.length  // Should be > 0
+viewer.imageryLayers.length     // Should be >= 1
+viewer.scene.globe.show        // Should be true
+```
+
+**Root Causes & Fixes** (all resolved in current version):
+
+1. **baseLayerPicker: true causes deferred globe creation**
+   - **Symptom**: `scenePrimitives: 0`
+   - **Fix**: Set `baseLayerPicker: false` and provide `imageryProvider` directly
+   - **Status**: ✅ Fixed in main.ts:159
+
+2. **Cesium Ion imagery fails with COEP restrictions**
+   - **Symptom**: COEP errors blocking `transferTypedArrayTest.js`, `createVerticesFromHeightmap.js`
+   - **Fix**: Add `Cross-Origin-Resource-Policy: cross-origin` middleware
+   - **Status**: ✅ Fixed in vite.config.ts:15
+
+3. **deck.gl overlay blocking globe with opaque background**
+   - **Symptom**: Globe exists but overlay canvas blocks visibility
+   - **Fix**: Set `gl.clearColor(0, 0, 0, 0)` for transparent clear
+   - **Status**: ✅ Fixed in render-worker.ts:500
+
+**Verification Steps**:
+```javascript
+// Check if fixes are active:
+fetch('/').then(r => console.log('CORP:', r.headers.get('cross-origin-resource-policy')));
+// Should show: "cross-origin"
+
+viewer.imageryLayers.get(0).imageryProvider.constructor.name
+// Should show: "OpenStreetMapImageryProvider"
+
+const overlay = document.getElementById('overlay-canvas');
+overlay.style.display = 'none';
+// Globe should still be visible (not blocked by overlay)
+```
+
 ### SharedArrayBuffer not available
 
 **Error**: `SharedArrayBuffer is not defined`
 
 **Solution**: Ensure Cross-Origin Isolation headers are set. Check browser console for COOP/COEP warnings.
 
+**Verify headers**:
+```bash
+curl -I http://localhost:3000 | grep -i "cross-origin"
+# Should show:
+# Cross-Origin-Embedder-Policy: require-corp
+# Cross-Origin-Opener-Policy: same-origin
+```
+
 ### WASM module not found
 
 **Error**: `Failed to fetch /wasm/negentropic_core.wasm`
 
 **Solution**: Build WASM module: `cd web && ./build-wasm.sh`
+
+**Troubleshooting WASM build**:
+```bash
+# Check Emscripten is available
+which emcc
+# If not found, activate emsdk:
+source /path/to/emsdk/emsdk_env.sh
+
+# Rebuild WASM
+cd web
+bash build-wasm.sh
+
+# Verify artifacts
+ls -lh public/wasm/
+# Should show: negentropic_core.js, negentropic_core.wasm
+```
+
+### Simulation fails to initialize
+
+**Error**: `neg_create returned NULL handle` or `Simulation creation failed`
+
+**Root Cause**: `num_entities: 0` configuration (C code rejects 0)
+
+**Solution**: Already fixed in core-worker.ts:111 (`num_entities: 1`)
+
+**Detailed error messages**:
+- ✅ WASM errors now include `UTF8ToString` error messages
+- ✅ Check console for: `[Core] Simulation creation failed: <detailed error>`
 
 ### Prithvi model download fails
 
@@ -334,6 +416,18 @@ response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
 - Lower visualization quality in deck.gl
 - Use quantized Prithvi model (`quantized: true`)
 - Enable hardware acceleration in browser settings
+
+**Performance diagnostics**:
+```javascript
+// Check worker performance
+console.log({
+  coreFPS: document.getElementById('core-fps').textContent,
+  renderFPS: document.getElementById('render-fps').textContent
+});
+
+// Check frame timing
+performance.measure('frame');
+```
 
 ---
 
@@ -381,6 +475,26 @@ See [LICENSE](../LICENSE) for details.
 
 ---
 
+## Recent Updates
+
+### November 15, 2025 - Globe Rendering Fixed
+
+**Critical fixes for globe visibility:**
+- ✅ Fixed `baseLayerPicker` deferring globe primitive creation
+- ✅ Added CORP headers to allow Cesium workers under COEP
+- ✅ Fixed deck.gl transparent overlay blocking globe
+- ✅ Added comprehensive error reporting with UTF8ToString
+- ✅ Fixed `num_entities: 0` configuration bug
+
+**Current Status:**
+- ✅ Globe renders with OpenStreetMap imagery
+- ✅ 10 Hz physics simulation running
+- ✅ 60 FPS deck.gl visualization
+- ✅ Region selection and simulation working
+- 🚧 Prithvi AI integration (next sprint)
+
+---
+
 **Version**: 0.1.0-alpha
-**Status**: Week 1 Infrastructure Complete
-**Updated**: November 14, 2025
+**Status**: Infrastructure Complete
+**Updated**: November 15, 2025

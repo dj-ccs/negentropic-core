@@ -311,6 +311,8 @@ class GeoV1Application {
 
   private async spawnRenderWorker() {
     return new Promise<void>((resolve, reject) => {
+      let canvasTransferred = false; // Flag to prevent double transfer
+
       this.renderWorker = new Worker(new URL('./workers/render-worker.ts', import.meta.url), {
         type: 'module',
       });
@@ -322,20 +324,23 @@ class GeoV1Application {
           case 'ready':
             console.log('✓ Render Worker ready');
 
-            // Transfer SAB and OffscreenCanvas to worker
-            const canvas = document.getElementById('overlay-canvas') as HTMLCanvasElement;
-            const offscreen = canvas.transferControlToOffscreen();
+            // Transfer SAB and OffscreenCanvas to worker (ONLY ONCE)
+            if (!canvasTransferred) {
+              const canvas = document.getElementById('overlay-canvas') as HTMLCanvasElement;
+              const offscreen = canvas.transferControlToOffscreen();
 
-            this.renderWorker!.postMessage({
-              type: 'init',
-              payload: {
-                sab: this.sab,
-                offscreenCanvas: offscreen,
-                fieldOffsets: this.getFieldOffsets(),
-              },
-            }, [offscreen]);
+              this.renderWorker!.postMessage({
+                type: 'init',
+                payload: {
+                  sab: this.sab,
+                  offscreenCanvas: offscreen,
+                  fieldOffsets: this.getFieldOffsets(),
+                },
+              }, [offscreen]);
 
-            resolve();
+              canvasTransferred = true;
+              resolve();
+            }
             break;
 
           case 'metrics':

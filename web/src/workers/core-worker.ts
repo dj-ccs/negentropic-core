@@ -284,7 +284,19 @@ function writeHeader(header: Partial<SABHeader>) {
 // ============================================================================
 
 function allocateString(str: string): number {
-  if (!wasmModule) throw new Error('WASM module not loaded');
+  if (!wasmModule) {
+    throw new Error('WASM module not loaded');
+  }
+
+  if (!wasmModule.HEAPU8) {
+    console.error('WASM module state:', {
+      hasModule: !!wasmModule,
+      hasMalloc: !!wasmModule._malloc,
+      hasHEAPU8: !!wasmModule.HEAPU8,
+      moduleKeys: Object.keys(wasmModule).slice(0, 20),
+    });
+    throw new Error('WASM module HEAPU8 not available - runtime may not be fully initialized');
+  }
 
   const encoder = new TextEncoder();
   const bytes = encoder.encode(str + '\0'); // Null-terminated

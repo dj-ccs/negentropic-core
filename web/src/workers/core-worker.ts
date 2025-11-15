@@ -108,7 +108,7 @@ function initializeSimulation() {
 
   // Create configuration JSON
   const config = {
-    num_entities: 0,
+    num_entities: 1, // IMPORTANT: Must be >= 1 (C code requirement, even if we only use scalar fields)
     num_scalar_fields: gridRows * gridCols,
     grid_width: gridCols,
     grid_height: gridRows,
@@ -158,7 +158,19 @@ function simulationLoop() {
     const result = wasmModule._neg_step(simHandle, dt);
 
     if (result !== 0) {
-      console.error(`neg_step failed with code ${result}`);
+      console.error(`[Core] neg_step failed with code ${result}`);
+      console.error('[Core] Simulation handle:', simHandle);
+      console.error('[Core] Timestep:', dt);
+
+      // Try to get error message from WASM if available
+      if (wasmModule._neg_get_last_error) {
+        const errorPtr = wasmModule._neg_get_last_error();
+        if (errorPtr) {
+          const errorMsg = wasmModule.UTF8ToString(errorPtr);
+          console.error('[Core] WASM error:', errorMsg);
+        }
+      }
+
       isRunning = false;
       postMessage({ type: 'error', payload: { code: result } });
       return;
@@ -382,6 +394,6 @@ self.onmessage = async (e: MessageEvent<CoreWorkerMessage>) => {
   }
 };
 
-// Signal that worker is ready
-postMessage({ type: 'ready' });
-console.log('Core Worker initialized');
+// Signal that worker script is loaded (but WASM not yet loaded)
+postMessage({ type: 'worker-loaded' });
+console.log('Core Worker script loaded, awaiting init...');

@@ -154,6 +154,26 @@ class GeoV1Application {
         maximumRenderTimeChange: Infinity,
       });
 
+      // Expose viewer globally for debugging
+      // @ts-ignore
+      window.viewer = this.viewer;
+
+      // Set globe base color as fallback when imagery doesn't load
+      this.viewer.scene.globe.baseColor = Color.fromCssColorString('#2e4057');
+      this.viewer.scene.globe.enableLighting = false; // Disable lighting for better visibility
+      this.viewer.scene.globe.showGroundAtmosphere = false; // Disable atmosphere for clearer view
+
+      // Force globe to show even if imagery fails
+      this.viewer.scene.globe.show = true;
+
+      // Set background color to something visible (not pure black)
+      this.viewer.scene.backgroundColor = Color.fromCssColorString('#0a0e27');
+
+      // Disable skybox (space background) to see globe better
+      this.viewer.scene.skyBox.show = false;
+      this.viewer.scene.sun.show = false;
+      this.viewer.scene.moon.show = false;
+
       // Log viewer creation success
       console.log('✓ Cesium Viewer created');
       console.log('  - Scene mode:', this.viewer.scene.mode);
@@ -179,7 +199,14 @@ class GeoV1Application {
       // Wait a frame to ensure scene is ready
       await new Promise(resolve => setTimeout(resolve, 100));
 
+      // Debug: Check if globe is actually visible
       console.log('✓ Cesium initialized successfully');
+      console.log('[DEBUG] Globe visibility check:', {
+        globeShow: this.viewer.scene.globe.show,
+        backgroundColor: this.viewer.scene.backgroundColor,
+        canvasWidth: this.viewer.canvas.width,
+        canvasHeight: this.viewer.canvas.height,
+      });
 
     } catch (error) {
       console.error('Failed to create Cesium Viewer:', error);
@@ -276,13 +303,18 @@ class GeoV1Application {
         const { type, payload } = e.data;
 
         switch (type) {
-          case 'ready':
-            console.log('✓ Core Worker ready');
-            // Transfer SAB to worker
+          case 'worker-loaded':
+            console.log('✓ Core Worker script loaded');
+            // Transfer SAB to worker for initialization
             this.coreWorker!.postMessage({
               type: 'init',
               payload: { sab: this.sab },
             });
+            // Don't resolve yet - wait for 'ready' after WASM loads
+            break;
+
+          case 'ready':
+            console.log('✓ Core Worker fully initialized (WASM loaded)');
             resolve();
             break;
 
@@ -304,8 +336,8 @@ class GeoV1Application {
         reject(new Error(`Core Worker failed: ${errorMsg}`));
       };
 
-      // Timeout
-      setTimeout(() => reject(new Error('Core Worker timeout')), 10000);
+      // Timeout increased to 30s to allow for WASM loading
+      setTimeout(() => reject(new Error('Core Worker timeout')), 30000);
     });
   }
 
@@ -321,10 +353,10 @@ class GeoV1Application {
         const { type, payload } = e.data;
 
         switch (type) {
-          case 'ready':
-            console.log('✓ Render Worker ready');
+          case 'worker-loaded':
+            console.log('✓ Render Worker script loaded');
 
-            // Transfer SAB and OffscreenCanvas to worker (ONLY ONCE)
+            // Transfer SAB and OffscreenCanvas to worker for initialization
             if (!canvasTransferred) {
               const canvas = document.getElementById('overlay-canvas') as HTMLCanvasElement;
               const offscreen = canvas.transferControlToOffscreen();
@@ -339,8 +371,13 @@ class GeoV1Application {
               }, [offscreen]);
 
               canvasTransferred = true;
-              resolve();
             }
+            // Don't resolve yet - wait for 'ready' after deck.gl loads
+            break;
+
+          case 'ready':
+            console.log('✓ Render Worker fully initialized (deck.gl loaded)');
+            resolve();
             break;
 
           case 'metrics':
@@ -361,8 +398,8 @@ class GeoV1Application {
         reject(new Error(`Render Worker failed: ${errorMsg}`));
       };
 
-      // Timeout
-      setTimeout(() => reject(new Error('Render Worker timeout')), 10000);
+      // Timeout increased to 30s to allow for deck.gl loading
+      setTimeout(() => reject(new Error('Render Worker timeout')), 30000);
     });
   }
 

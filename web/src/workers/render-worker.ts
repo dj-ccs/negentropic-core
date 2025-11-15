@@ -97,6 +97,30 @@ if (typeof OffscreenCanvas !== 'undefined') {
     OffscreenCanvas.prototype.dispatchEvent = function() { return true; };
   }
 
+  // @ts-ignore - Add DOM query methods for deck.gl WidgetManager
+  if (!OffscreenCanvas.prototype.querySelector) {
+    // @ts-ignore
+    OffscreenCanvas.prototype.querySelector = function() { return null; };
+    // @ts-ignore
+    OffscreenCanvas.prototype.querySelectorAll = function() { return []; };
+    // @ts-ignore
+    OffscreenCanvas.prototype.getElementById = function() { return null; };
+    // @ts-ignore
+    OffscreenCanvas.prototype.getElementsByClassName = function() { return []; };
+    // @ts-ignore
+    OffscreenCanvas.prototype.getElementsByTagName = function() { return []; };
+    // @ts-ignore
+    OffscreenCanvas.prototype.appendChild = function() {};
+    // @ts-ignore
+    OffscreenCanvas.prototype.removeChild = function() {};
+    // @ts-ignore
+    OffscreenCanvas.prototype.insertBefore = function() {};
+    // @ts-ignore
+    OffscreenCanvas.prototype.append = function() {};  // Modern DOM API
+    // @ts-ignore
+    OffscreenCanvas.prototype.prepend = function() {};  // Modern DOM API
+  }
+
   // @ts-ignore
   if (!OffscreenCanvas.prototype.style) {
     // @ts-ignore - Define style as a getter that returns a style object
@@ -229,6 +253,9 @@ if (typeof document === 'undefined') {
         dispatchEvent: () => true,
         appendChild: () => {},
         removeChild: () => {},
+        insertBefore: () => {},
+        append: () => {},  // Modern DOM API for appending nodes
+        prepend: () => {},  // Modern DOM API for prepending nodes
         setAttribute: () => {},
         getAttribute: () => null,
         removeAttribute: () => {},
@@ -236,6 +263,12 @@ if (typeof document === 'undefined') {
           left: 0, top: 0, right: 0, bottom: 0,
           width: 0, height: 0, x: 0, y: 0
         }),
+        // DOM query methods - critical for WidgetManager
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        getElementById: () => null,
+        getElementsByClassName: () => [],
+        getElementsByTagName: () => [],
         tagName: tag.toUpperCase(),
         nodeName: tag.toUpperCase(),
         nodeType: 1,
@@ -385,6 +418,36 @@ function initializeDeck(canvas: OffscreenCanvas) {
       canvas.dispatchEvent = function() { return true; };
     }
 
+    // Add querySelector and DOM query methods for WidgetManager
+    // @ts-ignore
+    if (!canvas.querySelector) {
+      // @ts-ignore
+      canvas.querySelector = function() { return null; };
+      // @ts-ignore
+      canvas.querySelectorAll = function() { return []; };
+      // @ts-ignore
+      canvas.getElementById = function() { return null; };
+      // @ts-ignore
+      canvas.getElementsByClassName = function() { return []; };
+      // @ts-ignore
+      canvas.getElementsByTagName = function() { return []; };
+    }
+
+    // Add appendChild/removeChild for widget container
+    // @ts-ignore
+    if (!canvas.appendChild) {
+      // @ts-ignore
+      canvas.appendChild = function() {};
+      // @ts-ignore
+      canvas.removeChild = function() {};
+      // @ts-ignore
+      canvas.insertBefore = function() {};
+      // @ts-ignore
+      canvas.append = function() {};  // Modern DOM API
+      // @ts-ignore
+      canvas.prepend = function() {};  // Modern DOM API
+    }
+
     // Create a minimal WebGL context for deck.gl
     const gl = canvas.getContext('webgl2', {
       alpha: true,
@@ -418,6 +481,9 @@ function initializeDeck(canvas: OffscreenCanvas) {
       },
       controller: false, // Disable controller in worker (main thread handles camera)
       layers: [],
+      // Disable all UI widgets - they're DOM-based and don't work in workers
+      _typedArrayManagerProps: null,
+      useDevicePixels: false, // Disable DPR scaling to avoid widget issues
     });
 
     console.log('✓ Deck.gl initialized in Render Worker');
@@ -448,6 +514,8 @@ function renderLoop() {
     if (fieldData) {
       // Update deck.gl layers
       updateLayers(fieldData);
+    } else if (frameCount === 0) {
+      console.log('[Render] No field data available yet');
     }
 
     // Render frame
@@ -485,20 +553,40 @@ function readHeader(): SABHeader | null {
 
   let offset = 4; // Skip first 4 bytes (Atomics signal)
 
+  // Read in SAME ORDER as core-worker writes
+  const version = headerView.getUint32(offset, true);
+  offset += 4;
+
+  const epoch = headerView.getUint32(offset, true);
+  offset += 4;
+
+  const rows = headerView.getUint32(offset, true);
+  offset += 4;
+
+  const cols = headerView.getUint32(offset, true);
+  offset += 4;
+
+  // Timestamp (8 bytes) comes BEFORE bbox
+  const timestamp = headerView.getFloat64(offset, true);
+  offset += 8;
+
+  // BBox (4 floats = 16 bytes) comes AFTER timestamp
+  const bbox = {
+    minLon: headerView.getFloat32(offset, true),
+    minLat: headerView.getFloat32(offset + 4, true),
+    maxLon: headerView.getFloat32(offset + 8, true),
+    maxLat: headerView.getFloat32(offset + 12, true),
+  };
+
   const header: SABHeader = {
-    version: headerView.getUint32(offset, true),
-    epoch: headerView.getUint32(offset + 4, true),
+    version,
+    epoch,
     gridID: 'default',
-    bbox: {
-      minLon: headerView.getFloat32(offset + 16, true),
-      minLat: headerView.getFloat32(offset + 20, true),
-      maxLon: headerView.getFloat32(offset + 24, true),
-      maxLat: headerView.getFloat32(offset + 28, true),
-    },
-    stride: gridCols,
-    rows: headerView.getUint32(offset + 8, true),
-    cols: headerView.getUint32(offset + 12, true),
-    timestamp: headerView.getFloat64(offset + 32, true),
+    bbox,
+    stride: cols,
+    rows,
+    cols,
+    timestamp,
   };
 
   return header;
@@ -531,10 +619,23 @@ function updateLayers(fieldData: Float32Array) {
   if (!deck) return;
 
   const header = readHeader();
-  if (!header) return;
+  if (!header) {
+    console.log('[Render] No header available');
+    return;
+  }
 
   // Convert field data to grid points for ScatterplotLayer
   const gridData = convertFieldToGrid(fieldData, header);
+
+  // Debug: Log layer update info (only first time and every 100 frames)
+  if (frameCount === 0 || frameCount % 100 === 0) {
+    console.log('[Render] Updating layers:', {
+      points: gridData.length,
+      bbox: header.bbox,
+      sampleValues: fieldData.slice(0, 5),
+      dataRange: [Math.min(...fieldData), Math.max(...fieldData)],
+    });
+  }
 
   // Define color scale based on field type
   const [minVal, maxVal] = getFieldRange(currentField);
@@ -718,10 +819,10 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
   }
 };
 
-// Signal that worker is ready
+// Signal that worker script is loaded (but deck.gl not yet loaded)
 try {
-  postMessage({ type: 'ready' });
-  console.log('Render Worker initialized');
+  postMessage({ type: 'worker-loaded' });
+  console.log('Render Worker script loaded, awaiting init...');
 } catch (error) {
   console.error('Render Worker failed to initialize:', error);
   postMessage({

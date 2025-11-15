@@ -136,29 +136,55 @@ class GeoV1Application {
       throw new Error('Cesium container not found');
     }
 
-    this.viewer = new Viewer(container, {
-      timeline: false,
-      animation: false,
-      baseLayerPicker: true,
-      geocoder: true,
-      homeButton: true,
-      sceneModePicker: true,
-      navigationHelpButton: false,
-      selectionIndicator: false,
-      infoBox: false,
-      requestRenderMode: false, // Continuous rendering for 60 FPS
-      maximumRenderTimeChange: Infinity,
-    });
+    console.log('Creating Cesium Viewer...');
+    console.log('Ion token status:', Ion.defaultAccessToken ? 'Configured' : 'Using default');
 
-    // Set initial camera position
-    this.viewer.camera.setView({
-      destination: Cartesian3.fromDegrees(-95.0, 40.0, 15000000.0),
-    });
+    try {
+      this.viewer = new Viewer(container, {
+        timeline: false,
+        animation: false,
+        baseLayerPicker: true,
+        geocoder: true,
+        homeButton: true,
+        sceneModePicker: true,
+        navigationHelpButton: false,
+        selectionIndicator: false,
+        infoBox: false,
+        requestRenderMode: false, // Continuous rendering for 60 FPS
+        maximumRenderTimeChange: Infinity,
+      });
 
-    // Add click handler for region selection
-    this.setupGlobeClickHandler();
+      // Log viewer creation success
+      console.log('✓ Cesium Viewer created');
+      console.log('  - Scene mode:', this.viewer.scene.mode);
+      console.log('  - Globe enabled:', this.viewer.scene.globe ? 'Yes' : 'No');
+      console.log('  - Terrain provider:', this.viewer.terrainProvider?.constructor?.name || 'None');
+      console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
 
-    console.log('✓ Cesium initialized');
+      // Check if globe is rendering
+      if (!this.viewer.scene.globe) {
+        console.warn('⚠ Globe is not enabled in the scene!');
+      }
+
+      // Set initial camera position
+      console.log('Setting initial camera view...');
+      this.viewer.camera.setView({
+        destination: Cartesian3.fromDegrees(-95.0, 40.0, 15000000.0),
+      });
+      console.log('✓ Camera positioned');
+
+      // Add click handler for region selection
+      this.setupGlobeClickHandler();
+
+      // Wait a frame to ensure scene is ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      console.log('✓ Cesium initialized successfully');
+
+    } catch (error) {
+      console.error('Failed to create Cesium Viewer:', error);
+      throw error;
+    }
   }
 
   private setupGlobeClickHandler() {

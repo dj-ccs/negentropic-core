@@ -97,6 +97,26 @@ if (typeof OffscreenCanvas !== 'undefined') {
     OffscreenCanvas.prototype.dispatchEvent = function() { return true; };
   }
 
+  // @ts-ignore - Add DOM query methods for deck.gl WidgetManager
+  if (!OffscreenCanvas.prototype.querySelector) {
+    // @ts-ignore
+    OffscreenCanvas.prototype.querySelector = function() { return null; };
+    // @ts-ignore
+    OffscreenCanvas.prototype.querySelectorAll = function() { return []; };
+    // @ts-ignore
+    OffscreenCanvas.prototype.getElementById = function() { return null; };
+    // @ts-ignore
+    OffscreenCanvas.prototype.getElementsByClassName = function() { return []; };
+    // @ts-ignore
+    OffscreenCanvas.prototype.getElementsByTagName = function() { return []; };
+    // @ts-ignore
+    OffscreenCanvas.prototype.appendChild = function() {};
+    // @ts-ignore
+    OffscreenCanvas.prototype.removeChild = function() {};
+    // @ts-ignore
+    OffscreenCanvas.prototype.insertBefore = function() {};
+  }
+
   // @ts-ignore
   if (!OffscreenCanvas.prototype.style) {
     // @ts-ignore - Define style as a getter that returns a style object
@@ -385,6 +405,32 @@ function initializeDeck(canvas: OffscreenCanvas) {
       canvas.dispatchEvent = function() { return true; };
     }
 
+    // Add querySelector and DOM query methods for WidgetManager
+    // @ts-ignore
+    if (!canvas.querySelector) {
+      // @ts-ignore
+      canvas.querySelector = function() { return null; };
+      // @ts-ignore
+      canvas.querySelectorAll = function() { return []; };
+      // @ts-ignore
+      canvas.getElementById = function() { return null; };
+      // @ts-ignore
+      canvas.getElementsByClassName = function() { return []; };
+      // @ts-ignore
+      canvas.getElementsByTagName = function() { return []; };
+    }
+
+    // Add appendChild/removeChild for widget container
+    // @ts-ignore
+    if (!canvas.appendChild) {
+      // @ts-ignore
+      canvas.appendChild = function() {};
+      // @ts-ignore
+      canvas.removeChild = function() {};
+      // @ts-ignore
+      canvas.insertBefore = function() {};
+    }
+
     // Create a minimal WebGL context for deck.gl
     const gl = canvas.getContext('webgl2', {
       alpha: true,
@@ -418,6 +464,9 @@ function initializeDeck(canvas: OffscreenCanvas) {
       },
       controller: false, // Disable controller in worker (main thread handles camera)
       layers: [],
+      // Disable all UI widgets - they're DOM-based and don't work in workers
+      _typedArrayManagerProps: null,
+      useDevicePixels: false, // Disable DPR scaling to avoid widget issues
     });
 
     console.log('✓ Deck.gl initialized in Render Worker');

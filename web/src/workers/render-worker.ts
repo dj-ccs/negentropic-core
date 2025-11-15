@@ -514,6 +514,8 @@ function renderLoop() {
     if (fieldData) {
       // Update deck.gl layers
       updateLayers(fieldData);
+    } else if (frameCount === 0) {
+      console.log('[Render] No field data available yet');
     }
 
     // Render frame
@@ -597,10 +599,23 @@ function updateLayers(fieldData: Float32Array) {
   if (!deck) return;
 
   const header = readHeader();
-  if (!header) return;
+  if (!header) {
+    console.log('[Render] No header available');
+    return;
+  }
 
   // Convert field data to grid points for ScatterplotLayer
   const gridData = convertFieldToGrid(fieldData, header);
+
+  // Debug: Log layer update info (only first time and every 100 frames)
+  if (frameCount === 0 || frameCount % 100 === 0) {
+    console.log('[Render] Updating layers:', {
+      points: gridData.length,
+      bbox: header.bbox,
+      sampleValues: fieldData.slice(0, 5),
+      dataRange: [Math.min(...fieldData), Math.max(...fieldData)],
+    });
+  }
 
   // Define color scale based on field type
   const [minVal, maxVal] = getFieldRange(currentField);

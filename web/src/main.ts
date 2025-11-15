@@ -179,7 +179,14 @@ class GeoV1Application {
       // Wait a frame to ensure scene is ready
       await new Promise(resolve => setTimeout(resolve, 100));
 
+      // Debug: Check if globe is actually visible
       console.log('✓ Cesium initialized successfully');
+      console.log('[DEBUG] Globe visibility check:', {
+        globeShow: this.viewer.scene.globe.show,
+        backgroundColor: this.viewer.scene.backgroundColor,
+        canvasWidth: this.viewer.canvas.width,
+        canvasHeight: this.viewer.canvas.height,
+      });
 
     } catch (error) {
       console.error('Failed to create Cesium Viewer:', error);

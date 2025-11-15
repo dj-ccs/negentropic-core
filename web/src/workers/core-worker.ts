@@ -50,19 +50,20 @@ async function loadWASM(): Promise<WASMModule> {
     const scriptText = await response.text();
 
     // Evaluate the script in the worker's global scope
-    // This will define the createNegentropic factory function
+    // This will define the Module factory function (Emscripten default with -sMODULARIZE=1)
     // eslint-disable-next-line no-eval
-    eval(scriptText);
+    (0, eval)(scriptText);
 
-    // @ts-ignore - createNegentropic is now defined globally
-    const createNegentropic = self.createNegentropic || self.Module;
+    // @ts-ignore - Module is defined globally by Emscripten
+    const ModuleFactory = self.Module;
 
-    if (!createNegentropic) {
-      throw new Error('WASM factory function not found after loading script');
+    if (!ModuleFactory || typeof ModuleFactory !== 'function') {
+      console.error('Available globals:', Object.keys(self).filter(k => !k.startsWith('_')));
+      throw new Error('Module factory function not found. Check Emscripten build configuration.');
     }
 
     console.log('Initializing WASM module...');
-    const module = await createNegentropic({
+    const module = await ModuleFactory({
       locateFile: (path: string) => {
         if (path.endsWith('.wasm')) {
           return '/wasm/negentropic_core.wasm';

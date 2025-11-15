@@ -3,12 +3,20 @@
  * Runs deck.gl on OffscreenCanvas, reads SAB at 60 FPS
  */
 
-// Polyfill for deck.gl in worker context
+// Polyfills for deck.gl in worker context
 // deck.gl expects 'global' to be defined, but workers use 'self'
 // @ts-ignore
 if (typeof global === 'undefined') {
   // @ts-ignore
   self.global = self;
+}
+
+// deck.gl checks for HTMLCanvasElement, but workers only have OffscreenCanvas
+// Create a minimal polyfill so deck.gl accepts OffscreenCanvas
+// @ts-ignore
+if (typeof HTMLCanvasElement === 'undefined') {
+  // @ts-ignore
+  self.HTMLCanvasElement = OffscreenCanvas;
 }
 
 import type {

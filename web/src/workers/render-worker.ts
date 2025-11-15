@@ -482,7 +482,6 @@ function initializeDeck(canvas: OffscreenCanvas) {
       controller: false, // Disable controller in worker (main thread handles camera)
       layers: [],
       // Disable all UI widgets - they're DOM-based and don't work in workers
-      _typedArrayManagerProps: null,
       useDevicePixels: false, // Disable DPR scaling to avoid widget issues
       // CRITICAL: Use transparent background so Cesium globe is visible underneath
       parameters: {

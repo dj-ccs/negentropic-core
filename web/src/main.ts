@@ -165,8 +165,8 @@ class GeoV1Application {
         infoBox: false,
         requestRenderMode: false, // Continuous rendering for 60 FPS
         maximumRenderTimeChange: Infinity,
-        // Use OSM as the base imagery layer from the start
-        imageryProvider: osmProvider,
+        // NOTE: imageryProvider option not supported in this Cesium version
+        // We'll add the imagery layer explicitly after viewer creation
       });
 
       // Expose viewer globally for debugging
@@ -185,9 +185,9 @@ class GeoV1Application {
       this.viewer.scene.backgroundColor = Color.fromCssColorString('#0a0e27');
 
       // Disable skybox (space background) to see globe better
-      this.viewer.scene.skyBox.show = false;
-      this.viewer.scene.sun.show = false;
-      this.viewer.scene.moon.show = false;
+      if (this.viewer.scene.skyBox) this.viewer.scene.skyBox.show = false;
+      if (this.viewer.scene.sun) this.viewer.scene.sun.show = false;
+      if (this.viewer.scene.moon) this.viewer.scene.moon.show = false;
 
       // Log viewer creation success
       console.log('✓ Cesium Viewer created');
@@ -201,7 +201,13 @@ class GeoV1Application {
         console.warn('⚠ Globe is not enabled in the scene!');
       }
 
-      // OSM imagery already added via imageryProvider option
+      // CRITICAL FIX: Explicitly add OSM imagery layer if not already added
+      // When baseLayerPicker is false, the imageryProvider constructor option is sometimes ignored
+      if (this.viewer.imageryLayers.length === 0) {
+        console.log('Adding OSM imagery layer explicitly...');
+        this.viewer.imageryLayers.addImageryProvider(osmProvider);
+      }
+
       console.log('✓ OpenStreetMap imagery provider configured');
       console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
 

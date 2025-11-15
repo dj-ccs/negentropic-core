@@ -49,7 +49,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          cesium: ['cesium'],
+          // cesium removed - it's external via vite-plugin-cesium
           deckgl: ['@deck.gl/core', '@deck.gl/layers', '@deck.gl/geo-layers'],
           transformers: ['@xenova/transformers'],
         },
@@ -64,6 +64,6 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
-    plugins: [wasm()],
+    plugins: () => [wasm()],
   },
 });

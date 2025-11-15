@@ -38,37 +38,43 @@ let gridCols: number = 100;
 async function loadWASM(): Promise<WASMModule> {
   try {
     // Load the Emscripten-generated module from public directory
-    // We use dynamic import via fetch since it's in /public
+    // Module workers don't support importScripts, so we use fetch + eval
     const scriptUrl = '/wasm/negentropic_core.js';
 
-    // Import the script into the worker context
-    if (typeof importScripts !== 'undefined') {
-      // Web Worker context - use importScripts
-      importScripts(scriptUrl);
-      // @ts-ignore - createNegentropic is loaded globally by importScripts
-      const createNegentropic = self.createNegentropic;
-
-      if (!createNegentropic) {
-        throw new Error('createNegentropic not found after loading script');
-      }
-
-      const module = await createNegentropic({
-        locateFile: (path: string) => {
-          if (path.endsWith('.wasm')) {
-            return '/wasm/negentropic_core.wasm';
-          }
-          return path;
-        },
-        print: (text: string) => console.log('[WASM]', text),
-        printErr: (text: string) => console.error('[WASM]', text),
-      });
-
-      console.log('✓ WASM module loaded in Core Worker');
-      return module as WASMModule;
-    } else {
-      // Fallback for non-worker context (shouldn't happen, but for safety)
-      throw new Error('Worker context required for WASM loading');
+    console.log('Fetching WASM loader script...');
+    const response = await fetch(scriptUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${scriptUrl}: ${response.status}`);
     }
+
+    const scriptText = await response.text();
+
+    // Evaluate the script in the worker's global scope
+    // This will define the createNegentropic factory function
+    // eslint-disable-next-line no-eval
+    eval(scriptText);
+
+    // @ts-ignore - createNegentropic is now defined globally
+    const createNegentropic = self.createNegentropic || self.Module;
+
+    if (!createNegentropic) {
+      throw new Error('WASM factory function not found after loading script');
+    }
+
+    console.log('Initializing WASM module...');
+    const module = await createNegentropic({
+      locateFile: (path: string) => {
+        if (path.endsWith('.wasm')) {
+          return '/wasm/negentropic_core.wasm';
+        }
+        return path;
+      },
+      print: (text: string) => console.log('[WASM]', text),
+      printErr: (text: string) => console.error('[WASM]', text),
+    });
+
+    console.log('✓ WASM module loaded in Core Worker');
+    return module as WASMModule;
 
   } catch (error) {
     console.error('Failed to load WASM module:', error);

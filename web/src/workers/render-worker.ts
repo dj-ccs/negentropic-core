@@ -115,6 +115,10 @@ if (typeof OffscreenCanvas !== 'undefined') {
     OffscreenCanvas.prototype.removeChild = function() {};
     // @ts-ignore
     OffscreenCanvas.prototype.insertBefore = function() {};
+    // @ts-ignore
+    OffscreenCanvas.prototype.append = function() {};  // Modern DOM API
+    // @ts-ignore
+    OffscreenCanvas.prototype.prepend = function() {};  // Modern DOM API
   }
 
   // @ts-ignore
@@ -250,6 +254,8 @@ if (typeof document === 'undefined') {
         appendChild: () => {},
         removeChild: () => {},
         insertBefore: () => {},
+        append: () => {},  // Modern DOM API for appending nodes
+        prepend: () => {},  // Modern DOM API for prepending nodes
         setAttribute: () => {},
         getAttribute: () => null,
         removeAttribute: () => {},
@@ -436,6 +442,10 @@ function initializeDeck(canvas: OffscreenCanvas) {
       canvas.removeChild = function() {};
       // @ts-ignore
       canvas.insertBefore = function() {};
+      // @ts-ignore
+      canvas.append = function() {};  // Modern DOM API
+      // @ts-ignore
+      canvas.prepend = function() {};  // Modern DOM API
     }
 
     // Create a minimal WebGL context for deck.gl

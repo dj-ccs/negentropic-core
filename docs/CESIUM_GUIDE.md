@@ -489,19 +489,28 @@ const imageryProvider = await IonImageryProvider.fromAssetId(2);
 const viewer = new Viewer('cesiumContainer', {
   baseLayerPicker: false,
   imageryProvider: imageryProvider,  // THE FIX - pass explicitly
+  baseLayer: true,                   // Enable base rendering (CRITICAL)
   requestRenderMode: false,
   // ... other options
 });
 
+// FALLBACK: In CesiumJS v1.120+, passing to constructor may not always add layer 0
+if (viewer.imageryLayers.length === 0) {
+  console.warn('⚠ Imagery not added via constructor, adding explicitly...');
+  viewer.imageryLayers.addImageryProvider(imageryProvider);
+}
+
 // Post-creation hardening
 viewer.scene.globe.show = true;
-viewer.scene.render();
+viewer.scene.requestRender();  // Force first render
 ```
 
 **Why this works:**
 - `IonImageryProvider.fromAssetId(2)` returns Cesium Ion's default Bing Maps imagery
-- Passing to constructor guarantees it becomes layer 0
-- Avoids async initialization race conditions
+- `baseLayer: true` enables base rendering pipeline (CRITICAL for visibility)
+- Passing to constructor attempts to add layer 0 (primary method)
+- Fallback `addImageryProvider()` ensures layer is added if constructor failed
+- `requestRender()` forces immediate render to show globe
 - Works reliably with COEP/COOP headers
 
 **Available Ion Asset IDs:**
@@ -509,12 +518,13 @@ viewer.scene.render();
 - `3` - Bing Maps Aerial
 - `4` - Bing Maps Road
 
-See `web/src/main.ts:150-172` for our production implementation:
+See `web/src/main.ts:150-220` for our production implementation:
 
 - **Imagery provider creation**: Lines 154-156
-- **Viewer setup**: Lines 158-172
-- **Globe hardening**: Lines 176-188
-- **Diagnostics & auto-correction**: Lines 212-278
+- **Viewer setup**: Lines 158-173 (includes `baseLayer: true`)
+- **Globe hardening**: Lines 176-193
+- **Fallback layer addition**: Lines 208-219 (if constructor didn't add layer)
+- **Diagnostics & auto-correction**: Lines 220-285
 
 ---
 

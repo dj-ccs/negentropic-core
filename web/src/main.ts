@@ -159,6 +159,7 @@ class GeoV1Application {
       this.viewer = new Viewer(container, {
         baseLayerPicker: false,        // Disable UI picker
         imageryProvider: imageryProvider, // CRITICAL: Explicitly pass imagery provider
+        baseLayer: true,               // Enable base rendering (CRITICAL for visibility)
         timeline: false,
         animation: false,
         geocoder: true,
@@ -189,7 +190,7 @@ class GeoV1Application {
       this.viewer.scene.globe.showGroundAtmosphere = false;
 
       // Force render on first frame to ensure globe appears
-      this.viewer.scene.render();
+      this.viewer.scene.requestRender();
 
       // Disable sun/moon for simpler visualization
       if (this.viewer.scene.sun) this.viewer.scene.sun.show = false;
@@ -203,10 +204,18 @@ class GeoV1Application {
       console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
 
       // CRITICAL CHECK: Verify imagery layers were added (see docs/CESIUM_GUIDE.md)
+      // FALLBACK: In CesiumJS v1.120+, passing to constructor may not always add layer 0
       if (this.viewer.imageryLayers.length === 0) {
-        console.error('❌ CRITICAL: No imagery layers! Globe will be invisible.');
-        console.error('   Fix: Ensure imageryProvider is passed to Viewer constructor.');
-        throw new Error('Imagery layers = 0 - globe initialization failed');
+        console.warn('⚠ Imagery not added via constructor, adding explicitly...');
+        this.viewer.imageryLayers.addImageryProvider(imageryProvider);
+        console.log('✓ Imagery layer added explicitly');
+        console.log('  - Imagery layers after explicit add:', this.viewer.imageryLayers.length);
+
+        // Final check - if still 0, this is a critical error
+        if (this.viewer.imageryLayers.length === 0) {
+          console.error('❌ CRITICAL: Failed to add imagery layer! Globe will be invisible.');
+          throw new Error('Imagery layers = 0 - globe initialization failed');
+        }
       }
 
       // Check if globe is rendering

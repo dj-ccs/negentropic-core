@@ -206,13 +206,20 @@ class GeoV1Application {
         // Remove default Cesium Ion imagery layer (which may fail due to COEP)
         if (this.viewer.imageryLayers.length > 0) {
           const defaultLayer = this.viewer.imageryLayers.get(0);
-          console.log('Removing default imagery layer:', defaultLayer.imageryProvider.constructor.name);
+          console.log('Removing default imagery layer');
           this.viewer.imageryLayers.remove(defaultLayer);
         }
 
         // Add OSM layer as primary imagery
-        this.viewer.imageryLayers.addImageryProvider(osmProvider);
+        const osmLayer = this.viewer.imageryLayers.addImageryProvider(osmProvider);
         console.log('✓ OpenStreetMap imagery provider added');
+
+        // Wait for imagery to be ready
+        osmProvider.readyPromise.then(() => {
+          console.log('✓ OpenStreetMap imagery ready to render');
+        }).catch((error) => {
+          console.error('OSM imagery ready promise failed:', error);
+        });
       } catch (error) {
         console.error('Failed to add OSM imagery provider:', error);
         console.warn('Globe will display with base color only');

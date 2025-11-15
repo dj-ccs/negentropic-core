@@ -24,6 +24,8 @@ import type {
 const DEBUG = import.meta.env.DEV;
 
 // --- START OF CRITICAL CONFIGURATION ---
+// This configuration resolves COEP blocking issues with Cesium.
+// For details, see: docs/CESIUM_GUIDE.md - Section 4 "COOP/COEP Integration for SAB"
 
 // 1. Tell Cesium where to load its assets from (the path we set in vite.config.ts)
 (window as any).CESIUM_BASE_URL = '/cesium/';

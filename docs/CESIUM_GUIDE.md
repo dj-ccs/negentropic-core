@@ -269,69 +269,153 @@ export default defineConfig({
 });
 ```
 
-### Cesium-Specific Setup
+### Critical COEP Blocking Issues with Cesium (Nov 2025)
 
-Serve Cesium **locally** (not from CDN) to match origin:
+**THE PROBLEM:**
+COEP blocks **two critical resources** that Cesium needs:
+
+1. **Cesium's internal worker scripts** (e.g., `createVerticesFromHeightmap.js`) - causes COEP violation errors
+2. **Cesium Ion API calls** to `api.cesium.com` - causes imagery provider timeout (5+ seconds), resulting in black globe
+
+**SYMPTOMS:**
+```
+Console Error: Specify a Cross-Origin Embedder Policy to prevent this frame from being blocked
+Request: createVerticesFromHeightmap.js
+Blocked Resource: http://localhost:3000/
+
+Console Warning: ⏳ Waiting for imagery provider to become ready...
+Console Warning: ⚠ Imagery provider not ready after 5s timeout
+Globe: Black sphere with stars (no Earth imagery)
+```
+
+### The Complete COEP Fix (Proven Solution)
+
+This is the **definitive, production-tested** solution implemented in GEO-v1:
+
+#### Step 1: Install Dependencies
 
 ```bash
-npm install cesium
+cd web
+npm install --save-dev vite-plugin-static-copy
 ```
 
-```typescript
-import * as Cesium from 'cesium';  // Local bundle (same-origin)
-import 'cesium/Build/Cesium/Widgets/widgets.css';
-```
-
-Copy Cesium static assets to `public/`:
+#### Step 2: Complete Vite Configuration
 
 ```typescript
-// vite.config.ts
+// web/vite.config.ts
 import { defineConfig } from 'vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import wasm from 'vite-plugin-wasm';
+import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [
+    wasm(),
+    // Copy Cesium's static assets to serve from same origin
     viteStaticCopy({
       targets: [
         {
           src: 'node_modules/cesium/Build/Cesium/Workers',
-          dest: 'cesium',
+          dest: 'cesium'
         },
         {
           src: 'node_modules/cesium/Build/Cesium/ThirdParty',
-          dest: 'cesium',
+          dest: 'cesium'
         },
         {
           src: 'node_modules/cesium/Build/Cesium/Assets',
-          dest: 'cesium',
+          dest: 'cesium'
         },
         {
           src: 'node_modules/cesium/Build/Cesium/Widgets',
-          dest: 'cesium',
-        },
-      ],
+          dest: 'cesium'
+        }
+      ]
     }),
   ],
+  server: {
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+    },
+    // CRITICAL: Proxy Cesium Ion API to make it same-origin
+    proxy: {
+      '/cesium-ion-api': {
+        target: 'https://api.cesium.com/',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/cesium-ion-api/, ''),
+      },
+    },
+  },
 });
 ```
 
-Set Cesium base URL:
+#### Step 3: Configure Cesium Base Paths
 
 ```typescript
-import { buildModuleUrl } from 'cesium';
+// web/src/main.ts (at the very top, before any Cesium usage)
 
-buildModuleUrl.setBaseUrl('/cesium/');
+import { Ion, IonImageryProvider } from 'cesium';
+import 'cesium/Build/Cesium/Widgets/widgets.css';
+
+// --- CRITICAL CONFIGURATION ---
+
+// 1. Tell Cesium where to load its assets from
+(window as any).CESIUM_BASE_URL = '/cesium/';
+
+// 2. Point Cesium's Ion server requests to our local proxy
+Ion.defaultServer = '/cesium-ion-api/';
+
+// 3. Configure Cesium Ion token from secure environment variable
+Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
+
+// --- END CRITICAL CONFIGURATION ---
 ```
+
+#### Step 4: Environment Variable Setup
+
+```bash
+# web/.env (DO NOT commit to git!)
+VITE_CESIUM_ION_TOKEN=your_actual_token_here
+```
+
+```bash
+# web/.env.example (safe to commit)
+VITE_CESIUM_ION_TOKEN=your_token_here
+```
+
+### Why This Fix Works
+
+**Root Cause Analysis:**
+- COEP requires all resources to be same-origin OR have explicit CORP headers
+- Cesium's worker scripts are served by Vite from `node_modules`, appearing as different origin
+- Cesium Ion API calls go to `api.cesium.com`, which is definitely cross-origin
+- Browser blocks both, causing worker errors and imagery timeout
+
+**The Solution:**
+1. **Static Asset Copying**: `vite-plugin-static-copy` copies Workers/Assets to `/cesium/` at build time → same-origin ✓
+2. **Ion API Proxy**: Vite proxy at `/cesium-ion-api` → rewrites to `api.cesium.com` → appears same-origin ✓
+3. **Path Configuration**: `CESIUM_BASE_URL` and `Ion.defaultServer` tell Cesium to use local paths
+4. **Token Security**: Environment variables keep API keys out of source code
 
 ### Troubleshooting COEP
 
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| Blocked `createVerticesFromHeightmap.js` | Worker script from CDN | Serve Cesium locally |
-| Iframe embed fails | Child iframe lacks COEP | Add headers to iframe src |
-| `SharedArrayBuffer` undefined | COEP/COOP not set | Verify headers in Network tab |
+| Issue | Symptom | Cause | Fix |
+|-------|---------|-------|-----|
+| **Blocked worker scripts** | `createVerticesFromHeightmap.js` COEP error | Workers from node_modules | Use `vite-plugin-static-copy` |
+| **Ion API timeout** | "Provider not ready after 5s" | API calls to api.cesium.com blocked | Add `/cesium-ion-api` proxy |
+| **Black globe** | Stars visible, no Earth | Both above issues combined | Complete fix (all steps) |
+| **Assets 404** | `Workers/*.js` not found | `CESIUM_BASE_URL` not set | Set `window.CESIUM_BASE_URL = '/cesium/'` |
+| **Token errors** | Ion authentication failure | Missing or invalid token | Check `.env` file and token validity |
+| `SharedArrayBuffer` undefined | COEP/COOP not set | Missing headers | Verify headers in Network tab |
 
 **Test SAB**: `console.log(typeof SharedArrayBuffer)` → should be `'function'`, not `'undefined'`
+
+**Verify Fix**: After implementing, you should see:
+- ✓ No COEP errors in console
+- ✓ "Ion imagery provider created and ready" within 1-2 seconds
+- ✓ Visible Earth globe with imagery (not black)
+- ✓ Cesium worker scripts loading from `/cesium/Workers/`
 
 **Full Guide**: [web.dev COOP/COEP](https://web.dev/articles/coop-coep)
 
@@ -472,59 +556,87 @@ if (viewer.imageryLayers.length === 0) {
 
 ## Implementation in GEO-v1 (November 2025 Update)
 
-### Production Fix: Explicit Ion Imagery Creation
+### Production Fix: Complete COEP-Compatible Setup
 
-After encountering the invisible globe issue (stars visible, no Earth), we implemented the following fix in `web/src/main.ts`:
+After resolving multiple initialization issues (COEP blocking, Ion API timeout, invisible globe), we implemented the complete fix in GEO-v1:
 
 ```typescript
+// web/src/main.ts
+
 import { Viewer, Ion, IonImageryProvider } from 'cesium';
+import 'cesium/Build/Cesium/Widgets/widgets.css';
 
-// Configure Ion token (required)
-Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+// --- CRITICAL CONFIGURATION (MUST BE BEFORE ANY CESIUM USAGE) ---
 
-// CRITICAL: Create imagery provider BEFORE Viewer
-// Asset ID 2 = Bing Maps Aerial with Labels (Ion default)
-const imageryProvider = await IonImageryProvider.fromAssetId(2);
+// 1. Tell Cesium where to load its assets from
+(window as any).CESIUM_BASE_URL = '/cesium/';
 
-const viewer = new Viewer('cesiumContainer', {
-  imageryProvider: imageryProvider,  // THE FIX - pass provider object explicitly
-  baseLayerPicker: false,
-  requestRenderMode: false,
-  // ... other options
-});
+// 2. Point Cesium's Ion server requests to our local proxy
+Ion.defaultServer = '/cesium-ion-api/';
 
-// FALLBACK: In CesiumJS v1.120+, passing to constructor may not always add layer 0
-if (viewer.imageryLayers.length === 0) {
-  console.warn('⚠ Imagery not added via constructor, adding explicitly...');
-  viewer.imageryLayers.addImageryProvider(imageryProvider);
+// 3. Configure Cesium Ion token from secure environment variable
+const CESIUM_ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN;
+if (CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== 'your_token_here') {
+  Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+  console.log('✓ Cesium Ion token configured');
 }
 
-// Post-creation hardening
-viewer.scene.globe.show = true;
-viewer.scene.requestRender();  // Force first render
+// --- END CRITICAL CONFIGURATION ---
+
+// Later in initializeCesium():
+async function initializeCesium() {
+  // CRITICAL: Create imagery provider BEFORE Viewer
+  // Asset ID 2 = Bing Maps Aerial with Labels (Ion default)
+  const imageryProvider = await IonImageryProvider.fromAssetId(2);
+  console.log('✓ Ion imagery provider created');
+
+  const viewer = new Viewer('cesiumContainer', {
+    imageryProvider: imageryProvider,  // Pass provider object explicitly
+    baseLayerPicker: false,
+    requestRenderMode: false,
+    // ... other options
+  });
+
+  // FALLBACK: Verify layer was added by constructor
+  if (viewer.imageryLayers.length === 0) {
+    console.warn('⚠ Imagery not added via constructor, adding explicitly...');
+    viewer.imageryLayers.addImageryProvider(imageryProvider);
+
+    if (viewer.imageryLayers.length === 0) {
+      throw new Error('❌ CRITICAL: Failed to add imagery layer');
+    }
+  }
+
+  // Post-creation hardening
+  viewer.scene.globe.show = true;
+  viewer.scene.requestRender();  // Force first render
+
+  console.log(`✓ Cesium globe initialized with ${viewer.imageryLayers.length} layer(s)`);
+}
 ```
 
-**Why this works:**
-- `IonImageryProvider.fromAssetId(2)` returns Cesium Ion's default Bing Maps imagery
-- Passing the provider object to constructor tells Cesium to add it as layer 0
-- Fallback `addImageryProvider()` ensures layer is added if constructor method failed
-- `requestRender()` forces immediate render to show globe
-- Works reliably with COEP/COOP headers
+**Why this complete solution works:**
 
-**IMPORTANT:** There is NO `baseLayer` boolean option in the Cesium Viewer constructor API. Passing `imageryProvider` directly is the correct pattern.
+1. **CESIUM_BASE_URL**: Tells Cesium to load Workers/Assets from `/cesium/` (served locally via vite-plugin-static-copy)
+2. **Ion.defaultServer**: Redirects Ion API calls to our local proxy `/cesium-ion-api` (which forwards to api.cesium.com)
+3. **Environment Variable**: Keeps API token secure and out of source control
+4. **Explicit Provider Creation**: `IonImageryProvider.fromAssetId(2)` creates Bing Maps imagery provider
+5. **Constructor Pattern**: Passing `imageryProvider` object (NOT a boolean!) is the correct API usage
+6. **Fallback Addition**: Ensures layer is added even if constructor method fails
+7. **COEP Compatibility**: All resources now appear as same-origin, satisfying COEP requirements
+
+**IMPORTANT:** There is NO `baseLayer` boolean option in the Cesium Viewer constructor API. Passing `imageryProvider` object directly is the correct pattern.
 
 **Available Ion Asset IDs:**
 - `2` - Bing Maps Aerial with Labels (default)
 - `3` - Bing Maps Aerial
 - `4` - Bing Maps Road
 
-See `web/src/main.ts:159-227` for our production implementation:
-
-- **Imagery provider creation**: Lines 159-161 (await IonImageryProvider.fromAssetId(2))
-- **Viewer setup**: Lines 163-177 (pass imageryProvider object to constructor)
-- **Globe hardening**: Lines 189-199 (force visibility settings)
-- **Fallback layer addition**: Lines 210-227 (only if constructor didn't add layer)
-- **Diagnostics & monitoring**: Lines 229-244 (debug mode only)
+**Production Files:**
+- **Configuration**: `web/vite.config.ts` (lines 11-30: static asset copy, lines 77-81: Ion API proxy)
+- **Setup**: `web/src/main.ts` (lines 26-45: critical configuration)
+- **Initialization**: `web/src/main.ts` (lines 155-227: provider creation and viewer setup)
+- **Environment**: `web/.env.example` (token template)
 
 ---
 
@@ -539,4 +651,4 @@ See `web/src/main.ts:159-227` for our production implementation:
 
 **Attribution**: This guide synthesizes Cesium v1.120+ documentation with fixes from Grok (xAI), community forums, and production debugging in the Negentropic-Core GEO-v1 pipeline.
 
-**Last Updated**: 2025-11-15 (Added baseLayer option and fallback layer addition pattern)
+**Last Updated**: 2025-11-15 (Added complete COEP fix with asset copying and Ion API proxy)

@@ -63,18 +63,32 @@ async function loadWASM(): Promise<WASMModule> {
     }
 
     console.log('Initializing WASM module with createNegentropic()...');
-    const module = await ModuleFactory({
-      locateFile: (path: string) => {
-        if (path.endsWith('.wasm')) {
-          return '/wasm/negentropic_core.wasm';
-        }
-        return path;
-      },
-      print: (text: string) => console.log('[WASM]', text),
-      printErr: (text: string) => console.error('[WASM]', text),
+
+    // Create a promise that resolves when the runtime is fully initialized
+    const module = await new Promise<WASMModule>((resolve, reject) => {
+      ModuleFactory({
+        locateFile: (path: string) => {
+          if (path.endsWith('.wasm')) {
+            return '/wasm/negentropic_core.wasm';
+          }
+          return path;
+        },
+        print: (text: string) => console.log('[WASM]', text),
+        printErr: (text: string) => console.error('[WASM]', text),
+        onRuntimeInitialized: function() {
+          console.log('[WASM] Runtime initialized');
+          // 'this' is the Module object
+          resolve(this as WASMModule);
+        },
+        onAbort: (what: any) => {
+          reject(new Error(`WASM aborted: ${what}`));
+        },
+      }).catch(reject);
     });
 
     console.log('✓ WASM module loaded in Core Worker');
+    console.log('  - HEAPU8 available:', !!module.HEAPU8);
+    console.log('  - _malloc available:', !!module._malloc);
     return module as WASMModule;
 
   } catch (error) {

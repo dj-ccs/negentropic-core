@@ -74,6 +74,9 @@ set(CORE_SOURCES
     src/core/rng.c
     src/api/negentropic.c
     src/solvers/atmosphere_biotic.c
+    src/solvers/hydrology_richards_lite.c
+    src/solvers/regeneration_cascade.c
+    src/solvers/regeneration_microbial.c
     embedded/se3_math.c
     embedded/trig_tables.c
     embedded/handoff.c
@@ -89,6 +92,9 @@ set(CORE_HEADERS
     src/core/include/platform.h
     src/api/negentropic.h
     src/solvers/atmosphere_biotic.h
+    src/solvers/hydrology_richards_lite.h
+    src/solvers/regeneration_cascade.h
+    src/solvers/regeneration_microbial.h
     embedded/se3_edge.h
     embedded/t_bsp.h
 )

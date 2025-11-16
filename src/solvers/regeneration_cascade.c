@@ -39,11 +39,13 @@ static int g_regv2_enabled = 0;  /* Flag: 0 = use old simple SOM, 1 = use REGv2 
 #define INT_TO_FXP(i)     ((int32_t)((i) << FRACBITS))
 
 /* Fixed-point multiply: (a * b) >> 16 */
+__attribute__((unused))
 static inline int32_t fxp_mul(int32_t a, int32_t b) {
     return (int32_t)(((int64_t)a * (int64_t)b) >> FRACBITS);
 }
 
 /* Fixed-point divide: (a << 16) / b */
+__attribute__((unused))
 static inline int32_t fxp_div(int32_t a, int32_t b) {
     if (b == 0) {
         return (a < 0) ? INT32_MIN : INT32_MAX;

@@ -68,6 +68,7 @@ static int parse_json_param(const char* json, const char* key, float* out_value)
  * This is a simplified parser - production code should use a proper JSON library.
  */
 static int parse_fb_table(const char* json, REGv2_FungalBacterial_Table* table) {
+    (void)json;  /* TODO: Parse from JSON in production */
     /* Hard-coded 8-entry table based on Edison's specification */
     /* In production, parse from JSON "entries" array */
     table->FB_ratio[0] = 0.10f;   table->multiplier[0] = 1.0f;
@@ -337,6 +338,11 @@ float regv2_C_cond(
     int n_cond_neighbors,
     const REGv2_Condensation_Params* params
 ) {
+    /* TODO: Full implementation would include roughness f_u(u*, z0) and emissivity f_r(α_surf) effects */
+    (void)u_star;
+    (void)z0;
+    (void)alpha_surf;
+
     /* Vapor excess (positive part) */
     float vapor_excess = regv2_positive_part(RH - RH_sat_Ts);
 

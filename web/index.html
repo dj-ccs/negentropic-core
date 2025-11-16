@@ -205,12 +205,39 @@
       <button id="pause-btn" disabled>Pause</button>
     </div>
 
+    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.2);">
+      <h3 style="font-size: 14px; margin-bottom: 10px; color: #4CAF50;">Visualization Layers</h3>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <label style="display: flex; align-items: center; cursor: pointer;">
+          <input type="checkbox" id="toggle-moisture" checked style="margin-right: 8px;">
+          <span style="font-size: 13px;">Moisture Layer (Theta)</span>
+        </label>
+
+        <label style="display: flex; align-items: center; cursor: pointer;">
+          <input type="checkbox" id="toggle-som" checked style="margin-right: 8px;">
+          <span style="font-size: 13px;">Soil Organic Matter</span>
+        </label>
+
+        <label style="display: flex; align-items: center; cursor: pointer;">
+          <input type="checkbox" id="toggle-vegetation" checked style="margin-right: 8px;">
+          <span style="font-size: 13px;">Vegetation Cover (3D)</span>
+        </label>
+
+        <label style="display: flex; align-items: center; cursor: pointer;">
+          <input type="checkbox" id="toggle-difference" style="margin-right: 8px;">
+          <span style="font-size: 13px; color: #4CAF50;">Show Restoration Impact</span>
+        </label>
+      </div>
+    </div>
+
     <div class="info-text">
       <strong>Instructions:</strong><br>
       1. Click anywhere on the globe to select a region<br>
       2. Prithvi AI will initialize the landscape state<br>
       3. Click "Start" to run the physics simulation<br>
-      4. Watch real-time moisture and SOM evolution
+      4. Toggle layers to see different aspects<br>
+      5. Enable "Restoration Impact" to see soil changes
     </div>
   </div>
 

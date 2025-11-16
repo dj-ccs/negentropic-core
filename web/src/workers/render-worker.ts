@@ -313,7 +313,7 @@ import type {
 
 // Deck.gl modules - loaded dynamically
 let Deck: any;
-let ScatterplotLayer: any;
+let GridLayer: any;
 let deckModulesLoaded = false;
 
 // ============================================================================
@@ -340,6 +340,15 @@ let gridCols: number = 100;
 let currentField: 'theta' | 'som' | 'vegetation' | 'temperature' = 'theta';
 let colorScale: [number, number] = [0, 1];
 
+// Layer visibility controls
+let showMoistureLayer: boolean = true;
+let showSOMLayer: boolean = true;
+let showVegetationLayer: boolean = true;
+let showDifferenceMap: boolean = false;
+
+// Baseline for difference map (captured at simulation start)
+let somBaseline: Float32Array | null = null;
+
 // ============================================================================
 // Deck.gl Module Loading
 // ============================================================================
@@ -350,9 +359,9 @@ async function loadDeckModules() {
   try {
     console.log('Loading deck.gl modules...');
     const deckCore = await import('@deck.gl/core');
-    const deckLayers = await import('@deck.gl/layers');
+    const deckAggregationLayers = await import('@deck.gl/aggregation-layers');
     Deck = deckCore.Deck;
-    ScatterplotLayer = deckLayers.ScatterplotLayer;
+    GridLayer = deckAggregationLayers.GridLayer;
     deckModulesLoaded = true;
     console.log('✓ Deck.gl modules loaded in Render Worker');
   } catch (error) {
@@ -636,43 +645,162 @@ function updateLayers(fieldData: Float32Array) {
     return;
   }
 
-  // Convert field data to grid points for ScatterplotLayer
-  const gridData = convertFieldToGrid(fieldData, header);
+  // Read all field data
+  const thetaData = readFieldFromSAB('theta');
+  const somData = readFieldFromSAB('som');
+  const vegetationData = readFieldFromSAB('vegetation');
+
+  if (!thetaData || !somData || !vegetationData) {
+    console.log('[Render] Waiting for field data...');
+    return;
+  }
+
+  // Capture baseline on first frame
+  if (frameCount === 0 && !somBaseline) {
+    somBaseline = new Float32Array(somData);
+    console.log('[Render] Captured SOM baseline for difference map');
+  }
+
+  // Convert field data to grid points
+  const thetaGrid = convertFieldToGrid(thetaData, header, 'theta');
+  const somGrid = convertFieldToGrid(somData, header, 'som');
+  const vegetationGrid = convertFieldToGrid(vegetationData, header, 'vegetation');
 
   // Debug: Log layer update info (only first time and every 100 frames)
   if (frameCount === 0 || frameCount % 100 === 0) {
     console.log('[Render] Updating layers:', {
-      points: gridData.length,
+      points: thetaGrid.length,
       bbox: header.bbox,
-      sampleValues: fieldData.slice(0, 5),
-      dataRange: [Math.min(...fieldData), Math.max(...fieldData)],
+      thetaRange: [Math.min(...thetaData), Math.max(...thetaData)],
+      somRange: [Math.min(...somData), Math.max(...somData)],
+      vegRange: [Math.min(...vegetationData), Math.max(...vegetationData)],
     });
   }
 
-  // Define color scale based on field type
-  const [minVal, maxVal] = getFieldRange(currentField);
+  const layers = [];
 
-  const layers = [
-    new ScatterplotLayer({
-      id: 'field-grid',
-      data: gridData,
-      pickable: true,
-      stroked: false,
-      filled: true,
-      radiusScale: 1000,
-      radiusMinPixels: 2,
-      radiusMaxPixels: 100,
-      getPosition: (d: any) => d.position,
-      getRadius: (d: any) => 500, // 500 meters radius per point
-      getFillColor: (d: any) => valueToColor(d.value, minVal, maxVal),
-      opacity: 0.8,
-    }),
-  ];
+  // Layer 1: Moisture Layer (theta)
+  // Color: Deep purple (dry) → Vibrant cyan (saturated)
+  if (showMoistureLayer) {
+    layers.push(
+      new GridLayer({
+        id: 'moisture-layer',
+        data: thetaGrid,
+        pickable: true,
+        extruded: false,
+        cellSize: getCellSize(header),
+        coverage: 1,
+        getPosition: (d: any) => d.position,
+        getColorWeight: (d: any) => d.value,
+        getElevationWeight: (d: any) => 0,
+        colorAggregation: 'MEAN' as any,
+        colorRange: [
+          [75, 0, 130, 180],    // Deep purple (dry) - RGB(75,0,130) = Indigo
+          [138, 43, 226, 190],  // Blue violet
+          [0, 191, 255, 200],   // Deep sky blue
+          [0, 255, 255, 210],   // Cyan (wet)
+          [64, 224, 208, 220],  // Turquoise (saturated)
+        ],
+        opacity: 0.7,
+      })
+    );
+  }
+
+  // Layer 2: Soil Organic Matter Layer (SOM)
+  // Color: Pale tan (low SOM) → Rich dark brown (high SOM)
+  if (showSOMLayer) {
+    layers.push(
+      new GridLayer({
+        id: 'som-layer',
+        data: somGrid,
+        pickable: true,
+        extruded: false,
+        cellSize: getCellSize(header),
+        coverage: 1,
+        getPosition: (d: any) => d.position,
+        getColorWeight: (d: any) => d.value,
+        getElevationWeight: (d: any) => 0,
+        colorAggregation: 'MEAN' as any,
+        colorRange: [
+          [210, 180, 140, 160],  // Pale tan (low SOM)
+          [188, 143, 143, 170],  // Rosy brown
+          [160, 82, 45, 180],    // Sienna (medium)
+          [101, 67, 33, 190],    // Dark brown
+          [54, 36, 18, 200],     // Rich dark brown (high SOM)
+        ],
+        opacity: 0.6,
+      })
+    );
+  }
+
+  // Layer 3: Vegetation Layer (vegetation_cover)
+  // Color: Brown (bare) → Vibrant green (forest)
+  // Elevation: Terrain "lifts" based on vegetation density
+  if (showVegetationLayer) {
+    layers.push(
+      new GridLayer({
+        id: 'vegetation-layer',
+        data: vegetationGrid,
+        pickable: true,
+        extruded: true,  // Enable 3D elevation
+        cellSize: getCellSize(header),
+        coverage: 1,
+        elevationScale: 5000,  // Scale factor for visual "lift"
+        getPosition: (d: any) => d.position,
+        getColorWeight: (d: any) => d.value,
+        getElevationWeight: (d: any) => d.value,  // Elevation based on vegetation
+        colorAggregation: 'MEAN' as any,
+        elevationAggregation: 'MEAN' as any,
+        colorRange: [
+          [101, 67, 33, 180],    // Brown (bare soil)
+          [139, 90, 43, 190],    // Saddle brown
+          [154, 205, 50, 200],   // Yellow green (grass)
+          [34, 139, 34, 210],    // Forest green
+          [0, 100, 0, 220],      // Dark green (dense forest)
+        ],
+        opacity: 0.8,
+      })
+    );
+  }
+
+  // Layer 4: Difference Map (SOM change visualization)
+  // Shows restoration impact: green = soil improvement, red = degradation
+  if (showDifferenceMap && somBaseline) {
+    const differenceGrid = convertDifferenceToGrid(somData, somBaseline, header);
+
+    layers.push(
+      new GridLayer({
+        id: 'difference-layer',
+        data: differenceGrid,
+        pickable: true,
+        extruded: false,
+        cellSize: getCellSize(header),
+        coverage: 1,
+        getPosition: (d: any) => d.position,
+        getColorWeight: (d: any) => d.delta,
+        getElevationWeight: (d: any) => 0,
+        colorAggregation: 'MEAN' as any,
+        // Symmetric color scale: red (loss) → white (no change) → green (gain)
+        colorRange: [
+          [139, 0, 0, 200],      // Dark red (degradation)
+          [255, 69, 0, 190],     // Red-orange
+          [255, 255, 255, 0],    // White (no change) - transparent
+          [0, 200, 0, 190],      // Green
+          [0, 100, 0, 200],      // Dark green (restoration)
+        ],
+        opacity: 0.9,
+      })
+    );
+  }
 
   deck.setProps({ layers });
 }
 
-function convertFieldToGrid(fieldData: Float32Array, header: SABHeader) {
+function convertFieldToGrid(
+  fieldData: Float32Array,
+  header: SABHeader,
+  fieldType: 'theta' | 'som' | 'vegetation' | 'temperature'
+) {
   const gridData: any[] = [];
 
   const lonStep = (header.bbox.maxLon - header.bbox.minLon) / gridCols;
@@ -696,51 +824,44 @@ function convertFieldToGrid(fieldData: Float32Array, header: SABHeader) {
   return gridData;
 }
 
+function convertDifferenceToGrid(
+  currentData: Float32Array,
+  baselineData: Float32Array,
+  header: SABHeader
+) {
+  const gridData: any[] = [];
+
+  const lonStep = (header.bbox.maxLon - header.bbox.minLon) / gridCols;
+  const latStep = (header.bbox.maxLat - header.bbox.minLat) / gridRows;
+
+  for (let row = 0; row < gridRows; row++) {
+    for (let col = 0; col < gridCols; col++) {
+      const idx = row * gridCols + col;
+      const current = currentData[idx];
+      const baseline = baselineData[idx];
+      const delta = current - baseline;
+
+      const lon = header.bbox.minLon + (col + 0.5) * lonStep;
+      const lat = header.bbox.minLat + (row + 0.5) * latStep;
+
+      gridData.push({
+        position: [lon, lat],
+        delta: delta,
+        current: current,
+        baseline: baseline,
+      });
+    }
+  }
+
+  return gridData;
+}
+
 function getCellSize(header: SABHeader): number {
   // Calculate cell size in degrees
   const lonStep = (header.bbox.maxLon - header.bbox.minLon) / gridCols;
   const latStep = (header.bbox.maxLat - header.bbox.minLat) / gridRows;
 
   return Math.max(lonStep, latStep) * 111320; // Convert to meters (approx)
-}
-
-function getFieldRange(fieldName: string): [number, number] {
-  switch (fieldName) {
-    case 'theta':
-      return [0, 0.5]; // soil moisture (0-50%)
-    case 'som':
-      return [0, 10]; // SOM (0-10%)
-    case 'vegetation':
-      return [0, 1]; // vegetation cover (0-100%)
-    case 'temperature':
-      return [0, 40]; // temperature (0-40°C)
-    default:
-      return [0, 1];
-  }
-}
-
-function valueToColor(value: number, min: number, max: number): [number, number, number, number] {
-  // Normalize value to 0-1
-  const normalized = Math.max(0, Math.min(1, (value - min) / (max - min)));
-
-  // Color scale: blue (low) -> green (medium) -> red (high)
-  if (normalized < 0.5) {
-    const t = normalized * 2;
-    return [
-      Math.floor(0 * (1 - t) + 0 * t),
-      Math.floor(0 * (1 - t) + 255 * t),
-      Math.floor(255 * (1 - t) + 0 * t),
-      200, // alpha
-    ];
-  } else {
-    const t = (normalized - 0.5) * 2;
-    return [
-      Math.floor(0 * (1 - t) + 255 * t),
-      Math.floor(255 * (1 - t) + 165 * t),
-      Math.floor(0 * (1 - t) + 0 * t),
-      200, // alpha
-    ];
-  }
 }
 
 // ============================================================================
@@ -808,6 +929,28 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
           }
           if (payload.colorScale) {
             colorScale = payload.colorScale;
+          }
+          // Layer visibility toggles
+          if (payload.showMoistureLayer !== undefined) {
+            showMoistureLayer = payload.showMoistureLayer;
+          }
+          if (payload.showSOMLayer !== undefined) {
+            showSOMLayer = payload.showSOMLayer;
+          }
+          if (payload.showVegetationLayer !== undefined) {
+            showVegetationLayer = payload.showVegetationLayer;
+          }
+          if (payload.showDifferenceMap !== undefined) {
+            showDifferenceMap = payload.showDifferenceMap;
+          }
+          // Capture baseline command
+          if (payload.captureBaseline) {
+            const somData = readFieldFromSAB('som');
+            if (somData) {
+              somBaseline = new Float32Array(somData);
+              console.log('[Render] SOM baseline captured on user request');
+              postMessage({ type: 'baseline-captured' });
+            }
           }
         }
         break;

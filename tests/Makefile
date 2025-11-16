@@ -20,10 +20,11 @@ TEST_EXEC_MATH = fixed_point_test
 TEST_EXEC_TBSP = t_bsp_test
 TEST_EXEC_BIOTIC = test_biotic_pump
 TEST_EXEC_REG = test_regeneration_cascade
+TEST_EXEC_PHYS_INT = physics_integration_benchmark
 
-.PHONY: all test test-math test-tbsp test-biotic test-reg clean
+.PHONY: all test test-math test-tbsp test-biotic test-reg test-phys-int clean
 
-all: $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP) $(TEST_EXEC_BIOTIC) $(TEST_EXEC_REG)
+all: $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP) $(TEST_EXEC_BIOTIC) $(TEST_EXEC_REG) $(TEST_EXEC_PHYS_INT)
 
 $(TEST_EXEC_MATH): fixed_point_accuracy_test.c $(SRC_MATH) $(SRC_TRIG)
 	@echo "Building fixed-point accuracy tests..."
@@ -45,7 +46,12 @@ $(TEST_EXEC_REG): test_regeneration_cascade.c ../src/solvers/regeneration_cascad
 	$(CC) $(CFLAGS) -I../src/solvers -o $@ $^ $(LDFLAGS)
 	@echo "✓ Build complete: $(TEST_EXEC_REG)"
 
-test: test-math test-tbsp test-biotic test-reg
+$(TEST_EXEC_PHYS_INT): physics_integration_benchmark.c ../src/solvers/hydrology_richards_lite.c ../src/solvers/regeneration_cascade.c ../src/solvers/regeneration_microbial.c
+	@echo "Building Physics Integration Benchmark..."
+	$(CC) $(CFLAGS) -I.. -I../src/solvers -o $@ $^ $(LDFLAGS)
+	@echo "✓ Build complete: $(TEST_EXEC_PHYS_INT)"
+
+test: test-math test-tbsp test-biotic test-reg test-phys-int
 
 test-math: $(TEST_EXEC_MATH)
 	@echo ""
@@ -71,8 +77,14 @@ test-reg: $(TEST_EXEC_REG)
 	@echo ""
 	./$(TEST_EXEC_REG)
 
+test-phys-int: $(TEST_EXEC_PHYS_INT)
+	@echo ""
+	@echo "Running Physics Integration Benchmark..."
+	@echo ""
+	./$(TEST_EXEC_PHYS_INT)
+
 clean:
-	rm -f $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP) $(TEST_EXEC_BIOTIC) $(TEST_EXEC_REG)
+	rm -f $(TEST_EXEC_MATH) $(TEST_EXEC_TBSP) $(TEST_EXEC_BIOTIC) $(TEST_EXEC_REG) $(TEST_EXEC_PHYS_INT)
 	@echo "✓ Cleaned build artifacts"
 
 # Help target

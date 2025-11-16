@@ -1,6 +1,6 @@
-# negentropic-core v0.3.3-alpha Architectural Quick Reference
+# negentropic-core v0.3.3 Architectural Quick Reference
 
-**Version:** v0.3.3-alpha
+**Version:** v0.3.3
 **Last Updated:** 2025-11-16
 **Status:** Production Ready
 
@@ -37,7 +37,7 @@ The architecture documentation is organized into nine core specifications:
 
 ## Master Table of Contents
 
-### 1. **[Deterministic Numerics Standard](./v0.3.3-alpha_Deterministic_Numerics_Standard.md)**
+### 1. **[Deterministic Numerics Standard](./Deterministic_Numerics_Standard_v0.3.3.md)**
 
 **Purpose:** To define the non-negotiable rules for ensuring perfect, cross-platform reproducibility.
 
@@ -56,7 +56,7 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
-### 2. **[Memory Architecture and SAB Layout](./v0.3.3-alpha_Memory_Architecture_and_SAB_Layout.md)**
+### 2. **[Memory Architecture and SAB Layout](./Memory_Architecture_and_SAB_Layout_v0.3.3.md)**
 
 **Purpose:** To provide the concrete memory schema for the zero-copy data pipeline.
 
@@ -79,7 +79,7 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
-### 3. **[Core Physics Specification](./v0.3.3-alpha_Core_Physics_Specification.md)**
+### 3. **[Core Physics Specification](./Core_Physics_Specification_v0.3.3.md)**
 
 **Purpose:** To detail the mathematical implementation of the core physics solvers.
 
@@ -114,7 +114,7 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
-### 4. **[Torsion Tensor Module](./v0.3.3-alpha_Torsion_Tensor_Module.md)**
+### 4. **[Torsion Tensor Module](./Torsion_Tensor_Module_v0.3.3.md)**
 
 **Purpose:** To specify the complete physics and implementation of the "2.5D" vorticity simulation.
 
@@ -139,7 +139,7 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
-### 5. **[Atmospheric and Cloud System](./v0.3.3-alpha_Atmospheric_and_Cloud_System.md)**
+### 5. **[Atmospheric and Cloud System](./Atmospheric_and_Cloud_System_v0.3.3.md)**
 
 **Purpose:** To define the visual and physical coupling of the dynamic cloud layer.
 
@@ -171,7 +171,7 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
-### 6. **[LoD and Cascading Simulation System](./v0.3.3-alpha_LoD_and_Cascading_Simulation_System.md)**
+### 6. **[LoD and Cascading Simulation System](./LoD_and_Cascading_Simulation_System_v0.3.3.md)**
 
 **Purpose:** To specify the complete mechanics of the multi-scale simulation engine.
 
@@ -205,7 +205,7 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
-### 7. **[User Events and Hash-Chained Log Standard](./v0.3.3-alpha_User_Events_and_Hash_Chained_Log_Standard.md)**
+### 7. **[User Events and Hash-Chained Log Standard](./User_Events_and_Hash_Chained_Log_Standard_v0.3.3.md)**
 
 **Purpose:** To define the standard for auditable, replayable user interactions.
 
@@ -239,7 +239,7 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
-### 8. **[CI Oracle and Validation Protocol](./v0.3.3-alpha_CI_Oracle_and_Validation_Protocol.md)**
+### 8. **[CI Oracle and Validation Protocol](./CI_Oracle_and_Validation_Protocol_v0.3.3.md)**
 
 **Purpose:** To provide the exact parameters for the automated continuous integration and validation pipeline.
 
@@ -283,7 +283,7 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
-### 9. **[Unity and Web Interop Specification](./v0.3.3-alpha_Unity_and_Web_Interop_Specification.md)**
+### 9. **[Unity and Web Interop Specification](./Unity_and_Web_Interop_Specification_v0.3.3.md)**
 
 **Purpose:** To ensure the physics engine remains consistent between the Unity game and the web-based Planetary Control Panel.
 
@@ -327,21 +327,21 @@ The architecture documentation is organized into nine core specifications:
 ## Quick Navigation by Topic
 
 ### Physics & Mathematics
-- [Core Physics Specification](./v0.3.3-alpha_Core_Physics_Specification.md) - HYD, REG, SE(3)
-- [Deterministic Numerics Standard](./v0.3.3-alpha_Deterministic_Numerics_Standard.md) - Fixed-point, LUTs, RNG
-- [Torsion Tensor Module](./v0.3.3-alpha_Torsion_Tensor_Module.md) - Vorticity, vertical velocity
-- [Atmospheric and Cloud System](./v0.3.3-alpha_Atmospheric_and_Cloud_System.md) - Clouds, biotic pump
+- [Core Physics Specification](./Core_Physics_Specification_v0.3.3.md) - HYD, REG, SE(3)
+- [Deterministic Numerics Standard](./Deterministic_Numerics_Standard_v0.3.3.md) - Fixed-point, LUTs, RNG
+- [Torsion Tensor Module](./Torsion_Tensor_Module_v0.3.3.md) - Vorticity, vertical velocity
+- [Atmospheric and Cloud System](./Atmospheric_and_Cloud_System_v0.3.3.md) - Clouds, biotic pump
 
 ### System Architecture
-- [Memory Architecture and SAB Layout](./v0.3.3-alpha_Memory_Architecture_and_SAB_Layout.md) - Zero-copy pipeline
-- [LoD and Cascading Simulation System](./v0.3.3-alpha_LoD_and_Cascading_Simulation_System.md) - Multi-scale engine
+- [Memory Architecture and SAB Layout](./Memory_Architecture_and_SAB_Layout_v0.3.3.md) - Zero-copy pipeline
+- [LoD and Cascading Simulation System](./LoD_and_Cascading_Simulation_System_v0.3.3.md) - Multi-scale engine
 
 ### Validation & Testing
-- [CI Oracle and Validation Protocol](./v0.3.3-alpha_CI_Oracle_and_Validation_Protocol.md) - Automated testing
-- [User Events and Hash-Chained Log Standard](./v0.3.3-alpha_User_Events_and_Hash_Chained_Log_Standard.md) - Audit trail
+- [CI Oracle and Validation Protocol](./CI_Oracle_and_Validation_Protocol_v0.3.3.md) - Automated testing
+- [User Events and Hash-Chained Log Standard](./User_Events_and_Hash_Chained_Log_Standard_v0.3.3.md) - Audit trail
 
 ### Platform Integration
-- [Unity and Web Interop Specification](./v0.3.3-alpha_Unity_and_Web_Interop_Specification.md) - Cross-platform
+- [Unity and Web Interop Specification](./Unity_and_Web_Interop_Specification_v0.3.3.md) - Cross-platform
 
 ---
 
@@ -429,4 +429,4 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
-**Last Updated:** 2025-11-16 | **Document Version:** 1.0 | **Schema Version:** v0.3.3-alpha
+**Last Updated:** 2025-11-16 | **Document Version:** 1.0 | **Schema Version:** v0.3.3

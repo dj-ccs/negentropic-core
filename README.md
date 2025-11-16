@@ -444,6 +444,18 @@ make test           # Run all test suites
 
 ## 📖 Documentation
 
+### Architecture Specifications (v0.3.3-alpha)
+- **[Architectural Quick Reference](architecture/Architectural_Quick-Ref.md)** - Complete technical specifications (9 interconnected documents)
+  - Deterministic Numerics Standard (fixed-point, LUTs, RNG)
+  - Memory Architecture & SAB Layout (zero-copy pipeline)
+  - Core Physics Specification (HYD, REG, SE(3))
+  - Torsion Tensor Module (2.5D vorticity)
+  - Atmospheric & Cloud System (dynamic clouds, biotic pump)
+  - LoD & Cascading Simulation (multi-scale engine)
+  - User Events & Hash-Chained Log Standard (audit trail)
+  - CI Oracle & Validation Protocol (automated testing)
+  - Unity & Web Interop Specification (cross-platform)
+
 ### Core Documentation
 - **[README_REGENERATION.md](src/solvers/README_REGENERATION.md)** - Complete REGv1 API reference, usage examples, troubleshooting
 - **[Integration Guide](docs/integration_example_regv1.md)** - Working code examples for coupled simulations

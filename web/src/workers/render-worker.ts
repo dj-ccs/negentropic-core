@@ -353,12 +353,11 @@ let showDifferenceMap: boolean = false;
 let somBaseline: Float32Array | null = null;
 
 // Camera viewState (synchronized from Cesium)
+// GlobeView uses longitude, latitude, and altitude (not zoom/pitch/bearing)
 let currentViewState: any = {
   longitude: 0,
   latitude: 0,
-  zoom: 3,
-  pitch: 0,
-  bearing: 0,
+  altitude: 1.5,  // Default GlobeView altitude (1.5 = nice overview)
 };
 
 // ============================================================================
@@ -567,12 +566,10 @@ function renderLoop() {
 
     // Log viewState for debugging (first frame and every 100 frames)
     if (frameCount === 0 || frameCount % 100 === 0) {
-      console.log('[Camera] ViewState:', {
+      console.log('[Camera] GlobeView ViewState:', {
         lon: currentViewState.longitude.toFixed(2),
         lat: currentViewState.latitude.toFixed(2),
-        zoom: currentViewState.zoom.toFixed(2),
-        pitch: currentViewState.pitch.toFixed(1),
-        bearing: currentViewState.bearing.toFixed(1),
+        alt: currentViewState.altitude.toFixed(3),  // Altitude (1 unit = viewport height)
       });
     }
 
@@ -1024,13 +1021,12 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
 
       case 'camera-sync':
         // Update viewState from Cesium camera
+        // GlobeView uses longitude, latitude, altitude (not zoom/pitch/bearing)
         if (payload) {
           currentViewState = {
             longitude: payload.longitude,
             latitude: payload.latitude,
-            zoom: payload.zoom,
-            pitch: payload.pitch,
-            bearing: payload.bearing,
+            altitude: payload.altitude,  // Relative altitude (1 unit = viewport height)
           };
         }
         break;

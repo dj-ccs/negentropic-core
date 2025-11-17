@@ -128,6 +128,10 @@ class GeoV1Application {
       this.updateLoadingStatus('Spawning Render Worker...');
       await this.spawnRenderWorker();
 
+      // START: Camera sync immediately after initialization
+      // This ensures deck.gl layers track the globe even before simulation starts
+      this.startCameraSync();
+
       this.updateLoadingStatus('Ready!');
       this.hideLoadingScreen();
       this.updateSystemStatus('Ready - Click on globe to select region');
@@ -585,8 +589,7 @@ class GeoV1Application {
     this.coreWorker.postMessage({ type: 'start' });
     this.renderWorker.postMessage({ type: 'start' });
 
-    // Start camera synchronization loop
-    this.startCameraSync();
+    // NOTE: Camera sync is already running (started in initialize())
 
     console.log('Simulation started');
   }
@@ -607,27 +610,26 @@ class GeoV1Application {
       // Convert to degrees
       const longitude = position.longitude * (180 / Math.PI);
       const latitude = position.latitude * (180 / Math.PI);
-      const height = position.height;
+      const height = position.height; // Altitude in meters
 
-      // Get camera heading, pitch, roll in degrees
-      const heading = camera.heading * (180 / Math.PI);
-      const pitch = camera.pitch * (180 / Math.PI);
-      const roll = camera.roll * (180 / Math.PI);
+      // Convert Cesium altitude (meters) to deck.gl GlobeView altitude
+      // deck.gl GlobeView altitude: 1 unit = viewport height, default 1.5
+      // Formula: normalize altitude relative to Earth radius
+      const altitude = this.cesiumAltitudeToGlobeViewAltitude(height);
 
       // Send to render worker
+      // NOTE: GlobeView does NOT support pitch/bearing rotation
+      // Camera always points towards center of Earth with north up
       this.renderWorker.postMessage({
         type: 'camera-sync',
         payload: {
           longitude,
           latitude,
-          altitude: height,
-          bearing: heading,
-          pitch: pitch + 90, // deck.gl pitch: 0 = top-down, 90 = horizon
-          zoom: this.altitudeToZoom(height),
+          altitude,  // GlobeView uses altitude, not zoom
         },
       });
 
-      // Continue syncing while running or just always sync (camera can move while paused)
+      // Continue syncing (camera can move even while paused)
       requestAnimationFrame(syncCamera);
     };
 
@@ -636,15 +638,36 @@ class GeoV1Application {
   }
 
   /**
-   * Convert Cesium altitude (meters) to deck.gl zoom level
-   * Approximation based on Web Mercator zoom levels
+   * Convert Cesium altitude (meters) to deck.gl GlobeView altitude
+   *
+   * deck.gl GlobeView altitude is relative to viewport height:
+   * - altitude = 1.0 means camera is at 1x viewport height above surface
+   * - altitude = 1.5 is the default (nice overview of globe)
+   * - Smaller values = closer to surface
+   * - Larger values = farther from globe
+   *
+   * Cesium altitude is absolute distance from ellipsoid surface in meters.
+   *
+   * @param cesiumAltitude - Altitude in meters from Cesium camera
+   * @returns Relative altitude for deck.gl GlobeView
    */
-  private altitudeToZoom(altitude: number): number {
-    // deck.gl zoom formula: zoom = log2(EARTH_CIRCUMFERENCE / (altitude * scale))
-    // Rough approximation for globe view
-    const EARTH_CIRCUMFERENCE = 40075017; // meters at equator
-    const zoom = Math.log2(EARTH_CIRCUMFERENCE / altitude) - 9;
-    return Math.max(0, Math.min(20, zoom)); // Clamp to valid range
+  private cesiumAltitudeToGlobeViewAltitude(cesiumAltitude: number): number {
+    // Earth radius in meters (WGS84 equatorial radius)
+    const EARTH_RADIUS = 6378137;
+
+    // Normalize altitude relative to Earth radius
+    // This gives us a scale-independent value
+    const normalizedAltitude = cesiumAltitude / EARTH_RADIUS;
+
+    // Map to deck.gl GlobeView altitude range
+    // - When viewing whole globe (altitude ~15M meters), we want ~1.5
+    // - When zoomed in close (altitude ~1000 meters), we want ~0.01
+    //
+    // Scale factor found empirically to match visual expectations
+    const deckAltitude = normalizedAltitude * 0.65;
+
+    // Clamp to reasonable range (0.001 = very close, 10 = very far)
+    return Math.max(0.001, Math.min(10, deckAltitude));
   }
 
   private pauseSimulation() {

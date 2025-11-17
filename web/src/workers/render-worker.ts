@@ -340,6 +340,14 @@ let gridCols: number = 100;
 let currentField: 'theta' | 'som' | 'vegetation' | 'temperature' = 'theta';
 let colorScale: [number, number] = [0, 1];
 
+// Camera synchronization state
+// GlobeView uses longitude, latitude, altitude (not zoom/pitch/bearing)
+let currentViewState: any = {
+  longitude: 0,
+  latitude: 0,
+  altitude: 2.5, // Initial altitude (relative units, ~medium zoom)
+};
+
 // Layer visibility controls
 let showMoistureLayer: boolean = true;
 let showSOMLayer: boolean = true;
@@ -958,6 +966,26 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
       case 'resize':
         if (payload?.width && payload?.height) {
           handleResize(payload.width, payload.height);
+        }
+        break;
+
+      case 'camera-sync':
+        // Update viewState from Cesium camera
+        // GlobeView uses longitude, latitude, altitude (not zoom/pitch/bearing)
+        if (payload) {
+          currentViewState = {
+            longitude: payload.longitude,
+            latitude: payload.latitude,
+            altitude: payload.altitude,  // Relative altitude (1 unit = viewport height)
+          };
+
+          // CRITICAL FIX: Force redraw on camera-sync message
+          // This ensures the layer moves/scales even when simulation is paused (isRunning=false)
+          if (deck) {
+            // Update viewState immediately and redraw
+            deck.setProps({ viewState: currentViewState });
+            deck.redraw();
+          }
         }
         break;
 

@@ -1,8 +1,8 @@
 # CURRENT SPRINT: [GEO-v1] Visualization Layer
 
 **Last Updated:** 2025-11-17
-**Active Branch:** `claude/fix-globe-sync-redraw-01Eog9Lq5YMKDnjudRm7mpf9`
-**Status:** 🟢 In Progress - Core Visualization System Operational
+**Active Branch:** `claude/review-docs-architecture-01Y9hq5MWYLohpZWX2UzwAdT`
+**Status:** 🟢 In Progress - Core Visualization System Operational (Consolidated Fixes)
 
 ---
 
@@ -28,22 +28,35 @@ Build the 3-thread application skeleton.
 - **Layer System:** Moisture, SOM, vegetation, and difference map layers
 - **FPS Monitoring:** Real-time performance metrics for both workers
 
-#### Recent Fixes (2025-11-17):
-**Problem:** deck.gl layer (red dot) only appeared after simulation started, moved out of sync with Cesium globe, incorrect altitude scaling, FPS stuck at 0
+#### Recent Fixes (2025-11-17) - CONSOLIDATED:
+**Problem:** Multiple discordant branches lost due to connection issues. Code had subtle bugs from incomplete merges.
 
-**Solution:** Implemented complete camera synchronization system:
+**Issues Found & Fixed:**
+1. **Duplicate camera-sync handler** (CRITICAL BUG): render-worker.ts had TWO `case 'camera-sync':` blocks. The second one (with critical `deck.redraw()`) was unreachable code!
+2. **Wrong scale factor**: Code used 0.65, but testing proved 0.85 is optimal
+3. **Altitude mismatch**: `currentViewState` had altitude: 2.5, but `initialViewState` had 1.5
+
+**Solution:** Implemented complete camera synchronization system with all proven fixes:
 - `startCameraSync()` in main.ts runs at 60 FPS via requestAnimationFrame
 - Converts Cesium camera position (lon/lat/altitude) to deck.gl GlobeView coordinates
-- `cesiumAltitudeToGlobeViewAltitude()` converts meters to relative units (0.85 scale factor)
+- `cesiumAltitudeToGlobeViewAltitude()` converts meters to relative units (0.85 scale factor - PROVEN optimal)
 - `camera-sync` message handler in render-worker.ts updates viewState and forces redraw
 - **Critical:** Redraw happens even when simulation is paused (isRunning=false)
+- Fixed duplicate case statement bug (removed first handler, kept one with redraw)
+- Aligned initial altitudes for consistency (both 1.5)
 
 **Result:**
 - ✅ Layer appears immediately upon initialization
 - ✅ Smooth 60 FPS tracking of Cesium camera
-- ✅ Correct altitude scaling when zooming
+- ✅ Correct altitude scaling when zooming (0.85 factor feels natural)
 - ✅ FPS reporting works correctly
 - ✅ Layer remains visible and in sync during pause
+- ✅ No more unreachable code bugs
+- ✅ All proven fixes consolidated into single working branch
+
+**Documentation:**
+- See `docs/CONSOLIDATED_FIXES_2025-11-17.md` for complete technical details
+- Updated `docs/DECKGL_CAMERA_SYNC_FIX.md` with scale factor change
 
 #### Architecture:
 ```

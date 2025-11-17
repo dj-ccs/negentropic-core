@@ -169,11 +169,15 @@ export type WorkerMessageType =
   | 'init'
   | 'start'
   | 'stop'
+  | 'pause'
   | 'step'
   | 'reset'
   | 'config'
   | 'state-update'
-  | 'error';
+  | 'error'
+  | 'camera-sync'
+  | 'resize'
+  | 'init-region';
 
 export interface WorkerMessage {
   type: WorkerMessageType;
@@ -188,6 +192,9 @@ export interface CoreWorkerMessage extends WorkerMessage {
     gridSpec?: GridSpec;
     runConfig?: RunConfig;
     initState?: InitState;
+    bbox?: BoundingBox;
+    date?: string;
+    [key: string]: any; // Allow additional properties
   };
 }
 
@@ -197,6 +204,22 @@ export interface RenderWorkerMessage extends WorkerMessage {
     sab?: SharedArrayBuffer;
     offscreenCanvas?: OffscreenCanvas;
     fieldOffsets?: FieldOffsets;
+    field?: 'theta' | 'som' | 'vegetation' | 'temperature';
+    colorScale?: [number, number];
+    showMoistureLayer?: boolean;
+    showSOMLayer?: boolean;
+    showVegetationLayer?: boolean;
+    showDifferenceMap?: boolean;
+    captureBaseline?: boolean;
+    width?: number;
+    height?: number;
+    longitude?: number;
+    latitude?: number;
+    altitude?: number;
+    zoom?: number;
+    pitch?: number;
+    bearing?: number;
+    [key: string]: any; // Allow additional properties
   };
 }
 

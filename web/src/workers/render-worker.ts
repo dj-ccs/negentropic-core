@@ -360,14 +360,6 @@ let showDifferenceMap: boolean = false;
 // Baseline for difference map (captured at simulation start)
 let somBaseline: Float32Array | null = null;
 
-// Camera viewState (synchronized from Cesium)
-// GlobeView uses longitude, latitude, and altitude (not zoom/pitch/bearing)
-let currentViewState: any = {
-  longitude: 0,
-  latitude: 0,
-  altitude: 1.5,  // Default GlobeView altitude (1.5 = nice overview)
-};
-
 // ============================================================================
 // Deck.gl Module Loading
 // ============================================================================

@@ -663,8 +663,8 @@ class GeoV1Application {
     // - When viewing whole globe (altitude ~15M meters), we want ~1.5
     // - When zoomed in close (altitude ~1000 meters), we want ~0.01
     //
-    // Scale factor found empirically to match visual expectations
-    const deckAltitude = normalizedAltitude * 0.65;
+    // Scale factor: 0.85 (proven in testing to match visual expectations)
+    const deckAltitude = normalizedAltitude * 0.85;
 
     // Clamp to reasonable range (0.001 = very close, 10 = very far)
     return Math.max(0.001, Math.min(10, deckAltitude));

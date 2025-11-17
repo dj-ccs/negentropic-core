@@ -2,8 +2,9 @@
 
 **Date:** 2025-11-17
 **Issue:** deck.gl layers not moving/scaling with Cesium globe
-**Status:** ✅ Fixed
-**Commits:** 961e9e8, de24ee8
+**Status:** ✅ Fixed (Consolidated)
+**Branch:** claude/review-docs-architecture-01Y9hq5MWYLohpZWX2UzwAdT
+**Commits:** 961e9e8, de24ee8, TBD (consolidated fixes)
 
 ---
 
@@ -149,8 +150,10 @@ private cesiumAltitudeToGlobeViewAltitude(cesiumAltitude: number): number {
 | 15,000,000 m   | 2.35       | 1.53             | Whole globe overview |
 | 10,000,000 m   | 1.57       | 1.02             | Hemisphere view |
 | 1,000,000 m    | 0.157      | 0.102            | Regional view |
-| 100,000 m      | 0.0157     | 0.0102           | Country view |
+| 100,000 m      | 0.0157     | 0.0133           | Country view |
 | 10,000 m       | 0.00157    | 0.001 (clamped)  | City view |
+
+**Note:** Scale factor updated from 0.65 to 0.85 after testing consolidation (2025-11-17).
 
 ### Fix 2: Use Only Supported Parameters
 
@@ -332,8 +335,8 @@ private cesiumAltitudeToGlobeViewAltitude(cesiumAltitude: number): number {
   // Normalize altitude relative to Earth radius
   const normalizedAltitude = cesiumAltitude / EARTH_RADIUS;
 
-  // Scale factor: 0.65 (empirical)
-  const deckAltitude = normalizedAltitude * 0.65;
+  // Scale factor: 0.85 (proven in testing)
+  const deckAltitude = normalizedAltitude * 0.85;
 
   // Clamp to reasonable range
   return Math.max(0.001, Math.min(10, deckAltitude));

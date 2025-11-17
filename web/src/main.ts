@@ -585,7 +585,66 @@ class GeoV1Application {
     this.coreWorker.postMessage({ type: 'start' });
     this.renderWorker.postMessage({ type: 'start' });
 
+    // Start camera synchronization loop
+    this.startCameraSync();
+
     console.log('Simulation started');
+  }
+
+  /**
+   * Camera Synchronization Loop
+   * Continuously sync Cesium camera state to deck.gl render worker
+   * This ensures deck.gl layers move with the globe
+   */
+  private startCameraSync() {
+    const syncCamera = () => {
+      if (!this.viewer || !this.renderWorker) return;
+
+      // Read Cesium camera state
+      const camera = this.viewer.camera;
+      const position = camera.positionCartographic;
+
+      // Convert to degrees
+      const longitude = position.longitude * (180 / Math.PI);
+      const latitude = position.latitude * (180 / Math.PI);
+      const height = position.height;
+
+      // Get camera heading, pitch, roll in degrees
+      const heading = camera.heading * (180 / Math.PI);
+      const pitch = camera.pitch * (180 / Math.PI);
+      const roll = camera.roll * (180 / Math.PI);
+
+      // Send to render worker
+      this.renderWorker.postMessage({
+        type: 'camera-sync',
+        payload: {
+          longitude,
+          latitude,
+          altitude: height,
+          bearing: heading,
+          pitch: pitch + 90, // deck.gl pitch: 0 = top-down, 90 = horizon
+          zoom: this.altitudeToZoom(height),
+        },
+      });
+
+      // Continue syncing while running or just always sync (camera can move while paused)
+      requestAnimationFrame(syncCamera);
+    };
+
+    // Start the sync loop
+    syncCamera();
+  }
+
+  /**
+   * Convert Cesium altitude (meters) to deck.gl zoom level
+   * Approximation based on Web Mercator zoom levels
+   */
+  private altitudeToZoom(altitude: number): number {
+    // deck.gl zoom formula: zoom = log2(EARTH_CIRCUMFERENCE / (altitude * scale))
+    // Rough approximation for globe view
+    const EARTH_CIRCUMFERENCE = 40075017; // meters at equator
+    const zoom = Math.log2(EARTH_CIRCUMFERENCE / altitude) - 9;
+    return Math.max(0, Math.min(20, zoom)); // Clamp to valid range
   }
 
   private pauseSimulation() {

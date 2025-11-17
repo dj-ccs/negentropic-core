@@ -136,6 +136,10 @@ Connect the live, benchmarked physics solvers to the visualization layer.
 
 ## Success Criteria
 
+A live, 60 FPS web application where a user can select a real-world location, seed it with satellite data, and watch our engine's regenerative cascade come to life.
+
+### Progress Tracking
+
 ✅ **3-Thread Architecture:** Main + Core Worker + Render Worker
 ✅ **Cesium Globe:** Visible, interactive, imagery loaded
 ✅ **deck.gl Integration:** OffscreenCanvas rendering in worker
@@ -144,8 +148,6 @@ Connect the live, benchmarked physics solvers to the visualization layer.
 ✅ **Performance Monitoring:** FPS counters for both workers
 🔄 **Prithvi Integration:** Satellite data seeding (in progress)
 🔄 **Physics Engine:** Live WASM solver integration (in progress)
-
-**Final Goal:** A live, 60 FPS web application where a user can select a real-world location, seed it with satellite data, and watch our engine's regenerative cascade come to life.
 
 ---
 

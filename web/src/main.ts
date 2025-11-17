@@ -71,6 +71,10 @@ class GeoV1Application {
   private activeRegionDisplay: HTMLElement;
   private startBtn: HTMLButtonElement;
   private pauseBtn: HTMLButtonElement;
+  private toggleMoistureCheckbox: HTMLInputElement;
+  private toggleSOMCheckbox: HTMLInputElement;
+  private toggleVegetationCheckbox: HTMLInputElement;
+  private toggleDifferenceCheckbox: HTMLInputElement;
 
   // Performance tracking
   private metrics: PerformanceMetrics = {
@@ -91,10 +95,20 @@ class GeoV1Application {
     this.activeRegionDisplay = document.getElementById('active-region')!;
     this.startBtn = document.getElementById('start-btn')! as HTMLButtonElement;
     this.pauseBtn = document.getElementById('pause-btn')! as HTMLButtonElement;
+    this.toggleMoistureCheckbox = document.getElementById('toggle-moisture')! as HTMLInputElement;
+    this.toggleSOMCheckbox = document.getElementById('toggle-som')! as HTMLInputElement;
+    this.toggleVegetationCheckbox = document.getElementById('toggle-vegetation')! as HTMLInputElement;
+    this.toggleDifferenceCheckbox = document.getElementById('toggle-difference')! as HTMLInputElement;
 
     // Bind event handlers
     this.startBtn.addEventListener('click', () => this.startSimulation());
     this.pauseBtn.addEventListener('click', () => this.pauseSimulation());
+
+    // Bind layer toggle handlers
+    this.toggleMoistureCheckbox.addEventListener('change', () => this.updateLayerVisibility());
+    this.toggleSOMCheckbox.addEventListener('change', () => this.updateLayerVisibility());
+    this.toggleVegetationCheckbox.addEventListener('change', () => this.updateLayerVisibility());
+    this.toggleDifferenceCheckbox.addEventListener('change', () => this.updateLayerVisibility());
   }
 
   async initialize() {
@@ -586,6 +600,27 @@ class GeoV1Application {
     this.renderWorker.postMessage({ type: 'pause' });
 
     console.log('Simulation paused');
+  }
+
+  private updateLayerVisibility() {
+    if (!this.renderWorker) return;
+
+    this.renderWorker.postMessage({
+      type: 'config',
+      payload: {
+        showMoistureLayer: this.toggleMoistureCheckbox.checked,
+        showSOMLayer: this.toggleSOMCheckbox.checked,
+        showVegetationLayer: this.toggleVegetationCheckbox.checked,
+        showDifferenceMap: this.toggleDifferenceCheckbox.checked,
+      },
+    });
+
+    console.log('Layer visibility updated:', {
+      moisture: this.toggleMoistureCheckbox.checked,
+      som: this.toggleSOMCheckbox.checked,
+      vegetation: this.toggleVegetationCheckbox.checked,
+      difference: this.toggleDifferenceCheckbox.checked,
+    });
   }
 
   private updateMetricsDisplay() {

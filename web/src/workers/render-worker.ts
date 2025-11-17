@@ -503,9 +503,8 @@ function initializeDeck(canvas: OffscreenCanvas) {
       initialViewState: {
         longitude: 0,
         latitude: 0,
-        zoom: 3,
-        pitch: 0,
-        bearing: 0,
+        altitude: 1.5,  // GlobeView altitude (1 unit = viewport height)
+        // NOTE: GlobeView does NOT support zoom, pitch, bearing
       },
       controller: false, // Disable controller in worker (main thread handles camera)
       layers: [],

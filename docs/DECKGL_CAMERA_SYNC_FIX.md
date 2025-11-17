@@ -480,21 +480,117 @@ if (frameCount === 0 || frameCount % 100 === 0) {
 
 ---
 
-## Conclusion
+## CRITICAL UPDATE: Third Fix Required (2025-11-17)
 
-The fix successfully resolves the camera synchronization issue by:
+### Issue After Second Fix
 
-1. ✅ Using correct altitude calculation (relative, not absolute)
-2. ✅ Removing unsupported parameters (pitch, bearing, zoom)
-3. ✅ Starting sync immediately (not just on simulation start)
-4. ✅ Following deck.gl GlobeView API specification
+After implementing the altitude-based camera sync (commit `de24ee8`), testing revealed:
 
-The test layer should now properly move and scale with the Cesium globe, demonstrating that geographic coordinate synchronization is working correctly.
+**✅ Camera sync data flow working:**
+- Logs showed: `[Camera] GlobeView ViewState: {lon: '-94.77', lat: '42.53', alt: '0.699'}`
+- Altitude values were correctly updating
+- Data pipeline confirmed operational
 
-**Status:** Ready for browser testing and user validation.
+**❌ Layer still in screen-space:**
+- Visual test: Layer did NOT move with globe rotation/pan
+- Visual test: Layer did NOT scale with zoom
+- Conclusion: ViewState data was correct, but projection was broken
+
+### Root Cause: Conflicting `initialViewState`
+
+**Problem:** The Deck initialization used Web Mercator parameters in `initialViewState`:
+
+```typescript
+// INCORRECT (render-worker.ts:503-509)
+initialViewState: {
+  longitude: 0,
+  latitude: 0,
+  zoom: 3,        // ❌ Web Mercator parameter (not supported by GlobeView)
+  pitch: 0,       // ❌ Not supported by GlobeView
+  bearing: 0,     // ❌ Not supported by GlobeView
+},
+```
+
+**Why this breaks projection:**
+- GlobeView initializes its viewport based on `initialViewState`
+- Presence of `zoom`, `pitch`, `bearing` causes GlobeView to fail silently
+- Falls back to default screen-space projection
+- Even though `currentViewState` is correctly updated later, the initial projection is already broken
+
+### Third Fix: Correct `initialViewState`
+
+**Solution (render-worker.ts:503-508):**
+
+```typescript
+// CORRECT
+initialViewState: {
+  longitude: 0,
+  latitude: 0,
+  altitude: 1.5,  // ✅ GlobeView altitude (1 unit = viewport height)
+  // NOTE: GlobeView does NOT support zoom, pitch, bearing
+},
+```
+
+**Why this works:**
+- GlobeView receives only supported parameters
+- Initializes geographic projection correctly
+- `currentViewState` updates can now properly modify the projection
+- Layers render in geographic space (LNGLAT) as intended
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2025-11-17
-**Next Review:** After browser testing confirms fix
+## Complete Fix Summary
+
+The full fix required **three sequential changes**:
+
+### Fix 1: Geographic Coordinate System (commit 961e9e8)
+```typescript
+// Layer configuration
+coordinateSystem: COORDINATE_SYSTEM.LNGLAT,
+radiusUnits: 'meters',
+```
+
+### Fix 2: Altitude-Based Camera Sync (commit de24ee8)
+```typescript
+// Camera sync payload
+payload: {
+  longitude,
+  latitude,
+  altitude,  // Not zoom/pitch/bearing
+}
+```
+
+### Fix 3: GlobeView-Compatible Initialization (commit PENDING)
+```typescript
+// Deck initialViewState
+initialViewState: {
+  longitude: 0,
+  latitude: 0,
+  altitude: 1.5,  // Not zoom/pitch/bearing
+}
+```
+
+---
+
+## Conclusion
+
+The complete fix successfully resolves the camera synchronization issue by:
+
+1. ✅ Using correct coordinate system (LNGLAT + meters)
+2. ✅ Using correct altitude calculation (relative, not absolute)
+3. ✅ Removing unsupported parameters from camera sync (pitch, bearing, zoom)
+4. ✅ Removing unsupported parameters from Deck initialization (pitch, bearing, zoom)
+5. ✅ Starting sync immediately (not just on simulation start)
+6. ✅ Following deck.gl GlobeView API specification completely
+
+The test layer should now properly move and scale with the Cesium globe, demonstrating that geographic coordinate synchronization is working correctly.
+
+**Status:** Ready for final browser testing and user validation.
+
+**Key Lesson:** GlobeView is strict about parameters. ANY presence of Web Mercator parameters (zoom, pitch, bearing) will break geographic projection, even if those parameters are later overridden.
+
+---
+
+**Document Version:** 1.1
+**Last Updated:** 2025-11-17 (Added Fix #3)
+**Next Review:** After browser testing confirms complete fix

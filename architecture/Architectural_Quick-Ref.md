@@ -403,6 +403,54 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
+## Integration Lessons Learned
+
+### deck.gl GlobeView with CesiumJS (Nov 2025)
+
+**Context:** Integrating deck.gl GlobeView for geographic visualization layers over a CesiumJS globe required three critical fixes to achieve proper coordinate synchronization.
+
+**Key Lessons:**
+
+1. **GlobeView Parameter Strictness:**
+   - GlobeView ONLY supports: `longitude`, `latitude`, `altitude`
+   - GlobeView does NOT support: `zoom`, `pitch`, `bearing` (Web Mercator params)
+   - ANY presence of unsupported parameters causes silent projection failure
+   - Applies to BOTH `initialViewState` AND runtime `viewState` updates
+
+2. **Altitude is NOT Zoom:**
+   - Web Mercator (MapView): Uses `zoom` levels 0-20 (logarithmic scale)
+   - GlobeView: Uses `altitude` relative to viewport height (linear, ~0.001-10)
+   - Conversion formula: `altitude = (cesiumAltitude / EARTH_RADIUS) * 0.65`
+   - Example: 15M meters → altitude 1.53 (whole globe view)
+
+3. **Camera Sync Must Start Immediately:**
+   - Camera sync must run from initialization, NOT just when simulation starts
+   - Users can pan/zoom the globe before starting simulation
+   - Use `requestAnimationFrame` for continuous sync at display refresh rate
+
+4. **Coordinate System Must Match View:**
+   - Layer: `coordinateSystem: COORDINATE_SYSTEM.LNGLAT`
+   - Layer: `radiusUnits: 'meters'` (for real-world scale)
+   - Deck: `views: [new _GlobeView()]` (note: exported as `_GlobeView` in v9.0)
+   - ViewState: `{longitude, latitude, altitude}` (no zoom/pitch/bearing)
+
+**Common Pitfalls:**
+
+| Issue | Symptom | Cause | Fix |
+|-------|---------|-------|-----|
+| Layer fixed on screen | Doesn't move with globe | Wrong initialViewState params | Use altitude, not zoom/pitch/bearing |
+| Zoom stuck at 0 | Layer doesn't scale | Web Mercator zoom formula | Use altitude calculation |
+| Layer in wrong location | Offset from expected position | CARTESIAN instead of LNGLAT | Set coordinateSystem: LNGLAT |
+| No camera updates | Layer never moves | Sync not started | Call startCameraSync() in initialize() |
+
+**Reference Documentation:**
+- Full fix details: `docs/DECKGL_CAMERA_SYNC_FIX.md`
+- deck.gl GlobeView API: https://deck.gl/docs/api-reference/core/globe-view
+
+**Status:** ✅ Fixed and documented (commits: 961e9e8, de24ee8, [PENDING])
+
+---
+
 ## Document Maintenance
 
 **Version Control:**

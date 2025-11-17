@@ -35,6 +35,7 @@ Build the 3-thread application skeleton.
 1. **Duplicate camera-sync handler** (CRITICAL BUG): render-worker.ts had TWO `case 'camera-sync':` blocks. The second one (with critical `deck.redraw()`) was unreachable code!
 2. **Wrong scale factor**: Code used 0.65, but testing proved 0.85 is optimal
 3. **Altitude mismatch**: `currentViewState` had altitude: 2.5, but `initialViewState` had 1.5
+4. **Layer visibility timing** (FINAL BUG): `updateLayers()` only called inside `renderLoop()`, so layer was invisible until simulation started
 
 **Solution:** Implemented complete camera synchronization system with all proven fixes:
 - `startCameraSync()` in main.ts runs at 60 FPS via requestAnimationFrame
@@ -44,6 +45,7 @@ Build the 3-thread application skeleton.
 - **Critical:** Redraw happens even when simulation is paused (isRunning=false)
 - Fixed duplicate case statement bug (removed first handler, kept one with redraw)
 - Aligned initial altitudes for consistency (both 1.5)
+- **Final Fix:** Call `updateLayers()` immediately after `initializeDeck()` to make layer visible on init
 
 **Result:**
 - ✅ Layer appears immediately upon initialization

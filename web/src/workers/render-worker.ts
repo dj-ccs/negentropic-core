@@ -965,6 +965,15 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
           // Initialize deck.gl
           initializeDeck(offscreenCanvas);
 
+          // CRITICAL FIX: Add test layer immediately after init to fix initial invisibility
+          // This ensures the layer is visible BEFORE the simulation starts.
+          // The test layer (red dot at Kansas) is added by updateLayers() regardless of fieldData.
+          // Pass empty Float32Array since we don't have simulation data yet.
+          updateLayers(new Float32Array(0));
+          deck.redraw();
+
+          console.log('[INIT] Test layer added and initial frame rendered');
+
           postMessage({ type: 'ready' });
         }
         break;

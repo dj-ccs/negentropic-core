@@ -314,6 +314,9 @@ import type {
 // Deck.gl modules - loaded dynamically
 let Deck: any;
 let GridLayer: any;
+let ScatterplotLayer: any;
+let _GlobeView: any; // Note: GlobeView is exported as _GlobeView (experimental API)
+let COORDINATE_SYSTEM: any;
 let deckModulesLoaded = false;
 
 // ============================================================================
@@ -349,6 +352,14 @@ let showDifferenceMap: boolean = false;
 // Baseline for difference map (captured at simulation start)
 let somBaseline: Float32Array | null = null;
 
+// Camera viewState (synchronized from Cesium)
+// GlobeView uses longitude, latitude, and altitude (not zoom/pitch/bearing)
+let currentViewState: any = {
+  longitude: 0,
+  latitude: 0,
+  altitude: 1.5,  // Default GlobeView altitude (1.5 = nice overview)
+};
+
 // ============================================================================
 // Deck.gl Module Loading
 // ============================================================================
@@ -360,10 +371,17 @@ async function loadDeckModules() {
     console.log('Loading deck.gl modules...');
     const deckCore = await import('@deck.gl/core');
     const deckAggregationLayers = await import('@deck.gl/aggregation-layers');
+    const deckLayers = await import('@deck.gl/layers');
+
     Deck = deckCore.Deck;
+    _GlobeView = deckCore._GlobeView;
+    COORDINATE_SYSTEM = deckCore.COORDINATE_SYSTEM;
     GridLayer = deckAggregationLayers.GridLayer;
+    ScatterplotLayer = deckLayers.ScatterplotLayer;
+
     deckModulesLoaded = true;
     console.log('✓ Deck.gl modules loaded in Render Worker');
+    console.log('[DEBUG] Coordinate system:', COORDINATE_SYSTEM.LNGLAT ? 'LNGLAT (geographic coordinates)' : 'Unknown');
   } catch (error) {
     console.error('Failed to load deck.gl modules:', error);
     throw new Error(`Deck.gl loading failed: ${String(error)}`);
@@ -475,18 +493,18 @@ function initializeDeck(canvas: OffscreenCanvas) {
       gl.canvas = canvas;
     }
 
-    // Initialize deck.gl with OffscreenCanvas
+    // Initialize deck.gl with OffscreenCanvas and GlobeView
     deck = new Deck({
       canvas: canvas as any,
       gl,
       width: canvas.width,
       height: canvas.height,
+      views: [new _GlobeView()],  // CRITICAL: Use GlobeView for geographic projection
       initialViewState: {
         longitude: 0,
         latitude: 0,
-        zoom: 3,
-        pitch: 0,
-        bearing: 0,
+        altitude: 1.5,  // GlobeView altitude (1 unit = viewport height)
+        // NOTE: GlobeView does NOT support zoom, pitch, bearing
       },
       controller: false, // Disable controller in worker (main thread handles camera)
       layers: [],
@@ -529,6 +547,9 @@ function renderLoop() {
     const int32View = new Int32Array(sab);
     const currentSignal = Atomics.load(int32View, SAB_SIGNAL_INDEX);
 
+    // Update viewState from camera sync
+    deck.setProps({ viewState: currentViewState });
+
     // Read field data from SAB
     const fieldData = readFieldFromSAB(currentField);
 
@@ -541,6 +562,15 @@ function renderLoop() {
 
     // Render frame
     deck.redraw();
+
+    // Log viewState for debugging (first frame and every 100 frames)
+    if (frameCount === 0 || frameCount % 100 === 0) {
+      console.log('[Camera] GlobeView ViewState:', {
+        lon: currentViewState.longitude.toFixed(2),
+        lat: currentViewState.latitude.toFixed(2),
+        alt: currentViewState.altitude.toFixed(3),  // Altitude (1 unit = viewport height)
+      });
+    }
 
     // Update FPS counter
     frameCount++;
@@ -793,6 +823,39 @@ function updateLayers(fieldData: Float32Array) {
     );
   }
 
+  // ============================================================================
+  // TEST LAYER: Geographic Coordinate Verification
+  // ============================================================================
+  // Red circle at Kansas, USA [-95, 40] with 50km radius
+  // This layer should MOVE and SCALE with the globe
+  // If it stays fixed on screen, geographic coordinates are broken
+  layers.push(
+    new ScatterplotLayer({
+      id: 'test-geo-layer',
+      data: [
+        {
+          position: [-95, 40],  // Kansas, USA (geographic coordinates)
+          radius: 50000,         // 50km in meters
+          color: [255, 0, 0],   // Red fill
+        },
+      ],
+      coordinateSystem: COORDINATE_SYSTEM.LNGLAT,  // CRITICAL: Geographic coordinates
+      getPosition: (d: any) => d.position,
+      getRadius: (d: any) => d.radius,
+      radiusUnits: 'meters',  // CRITICAL: Meters, not pixels
+      getFillColor: (d: any) => d.color,
+      getLineColor: [255, 255, 0],  // Yellow outline
+      lineWidthMinPixels: 2,
+      opacity: 0.8,
+    })
+  );
+
+  // Debug log for test layer (first frame only)
+  if (frameCount === 0) {
+    console.log('[TEST] Red scatter layer added at [-95, 40], radius: 50km (meters)');
+    console.log('[TEST] If this circle does NOT move/scale with globe, projection is broken');
+  }
+
   deck.setProps({ layers });
 }
 
@@ -952,6 +1015,18 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
               postMessage({ type: 'baseline-captured' });
             }
           }
+        }
+        break;
+
+      case 'camera-sync':
+        // Update viewState from Cesium camera
+        // GlobeView uses longitude, latitude, altitude (not zoom/pitch/bearing)
+        if (payload) {
+          currentViewState = {
+            longitude: payload.longitude,
+            latitude: payload.latitude,
+            altitude: payload.altitude,  // Relative altitude (1 unit = viewport height)
+          };
         }
         break;
 

@@ -103,7 +103,7 @@ export default defineConfig({
         manualChunks: {
           // cesium removed - it's external via vite-plugin-cesium
           deckgl: ['@deck.gl/core', '@deck.gl/layers', '@deck.gl/geo-layers'],
-          transformers: ['@xenova/transformers'],
+          // transformers: ['@xenova/transformers'], // Temporarily disabled
         },
       },
     },

@@ -4,8 +4,14 @@
  * Based on Part 1 of the research document: Geospatial foundation models and open data
  */
 
-import { pipeline, AutoImageProcessor, AutoModel } from '@xenova/transformers';
+// TODO: Re-enable when @xenova/transformers is added back to package.json
+// import { pipeline, AutoImageProcessor, AutoModel } from '@xenova/transformers';
 import type { PrithviInput, PrithviOutput, BoundingBox } from '../types/geo-api';
+
+// Stub types for when transformers is not available
+const pipeline: any = null;
+const AutoImageProcessor: any = null;
+const AutoModel: any = null;
 
 // ============================================================================
 // Prithvi Model Configuration

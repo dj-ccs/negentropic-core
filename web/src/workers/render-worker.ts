@@ -424,8 +424,35 @@ class MatrixView {
    * Stub methods to satisfy deck.gl's View interface
    */
   equals() { return false; }
-  makeViewport() { return this.getViewport({ width: 800, height: 600 }); }
+
+  makeViewport(opts: any) {
+    return this.getViewport({
+      width: opts?.width || 800,
+      height: opts?.height || 600
+    });
+  }
+
   getViewStateId() { return this.id; }
+
+  /**
+   * Filter view state by this view's ID
+   * deck.gl ViewManager requires this to extract view-specific state from global state
+   */
+  filterViewState(viewState: any) {
+    // If viewState is an object with view IDs as keys, extract this view's state
+    if (viewState && typeof viewState === 'object' && this.id in viewState) {
+      return viewState[this.id];
+    }
+    // Otherwise return the entire viewState (single-view scenario)
+    return viewState;
+  }
+
+  /**
+   * Stub for container creation (required by some deck.gl versions)
+   */
+  makeContainer(opts: any) {
+    return {};
+  }
 }
 
 // ============================================================================

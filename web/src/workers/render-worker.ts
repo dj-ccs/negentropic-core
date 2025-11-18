@@ -383,9 +383,6 @@ let somBaseline: Float32Array | null = null;
  */
 function createMatrixViewClass() {
   return class MatrixView extends View {
-    viewMatrix: Float32Array;
-    projectionMatrix: Float32Array;
-
     constructor(props: any = {}) {
       // CRITICAL: Merge props BEFORE calling super() to avoid non-extensible object error
       // deck.gl's View base class freezes/seals the object after super() is called
@@ -398,13 +395,16 @@ function createMatrixViewClass() {
 
       super(mergedProps);
 
-      // Initialize matrices to identity to avoid "not invertible" error on first frame
-      // These are instance properties, not on the frozen props object
-      this.viewMatrix = new Float32Array(16);
-      this.viewMatrix[0] = this.viewMatrix[5] = this.viewMatrix[10] = this.viewMatrix[15] = 1;
+      // CRITICAL: Initialize matrices dynamically (not as class fields) to avoid
+      // "Cannot define property, object is not extensible" error.
+      // TypeScript field declarations are transpiled to assignments AFTER super(),
+      // which fails if deck.gl's View freezes the instance.
+      // Using (this as any) bypasses TypeScript checking for dynamic properties.
+      (this as any).viewMatrix = new Float32Array(16);
+      (this as any).viewMatrix[0] = (this as any).viewMatrix[5] = (this as any).viewMatrix[10] = (this as any).viewMatrix[15] = 1;
 
-      this.projectionMatrix = new Float32Array(16);
-      this.projectionMatrix[0] = this.projectionMatrix[5] = this.projectionMatrix[10] = this.projectionMatrix[15] = 1;
+      (this as any).projectionMatrix = new Float32Array(16);
+      (this as any).projectionMatrix[0] = (this as any).projectionMatrix[5] = (this as any).projectionMatrix[10] = (this as any).projectionMatrix[15] = 1;
     }
 
     /**
@@ -427,8 +427,8 @@ function createMatrixViewClass() {
         y: 0,
         width,
         height,
-        viewMatrix: this.viewMatrix,
-        projectionMatrix: this.projectionMatrix,
+        viewMatrix: (this as any).viewMatrix,
+        projectionMatrix: (this as any).projectionMatrix,
         // Near/far clipping planes to match Cesium's frustum
         near: 0.1,
         far: 100000000.0,
@@ -1172,8 +1172,8 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
         if (payload?.viewMatrix && payload?.projectionMatrix && deck && matrixView) {
           // Copy raw matrices to the custom view instance
           // Using Float32Array.set for optimal performance
-          matrixView.viewMatrix.set(payload.viewMatrix);
-          matrixView.projectionMatrix.set(payload.projectionMatrix);
+          (matrixView as any).viewMatrix.set(payload.viewMatrix);
+          (matrixView as any).projectionMatrix.set(payload.projectionMatrix);
 
           // CRITICAL: Force deck.gl to recognize the matrix update
           // We update the views array to trigger a re-render with the new matrices

@@ -958,9 +958,20 @@ function updateLayers(fieldData: Float32Array) {
   }
 
   // Layer 4: Difference Map (SOM change visualization)
-  // Shows restoration impact: green = soil improvement, red = degradation
+  // Shows restoration impact: green/blue = soil improvement, red = degradation
+  // Uses CliMA RdBu-11 perceptual colormap for scientifically-validated visualization
   if (showDifferenceMap && somBaseline) {
     const differenceGrid = convertDifferenceToGrid(somData, somBaseline, header);
+
+    // Log delta statistics every 100 frames for monitoring
+    if (frameCount % 100 === 0) {
+      const deltas = differenceGrid.map((d: any) => d.delta);
+      console.log('[Render] Delta statistics:', {
+        min: Math.min(...deltas).toFixed(4),
+        max: Math.max(...deltas).toFixed(4),
+        mean: (deltas.reduce((a: number, b: number) => a + b, 0) / deltas.length).toFixed(4),
+      });
+    }
 
     layers.push(
       new GridLayer({
@@ -971,16 +982,23 @@ function updateLayers(fieldData: Float32Array) {
         cellSize: getCellSize(header),
         coverage: 1,
         getPosition: (d: any) => d.position,
-        getColorWeight: (d: any) => d.delta,
+        getColorWeight: (d: any) => d.normalizedDelta,  // Use normalized delta for color mapping
         getElevationWeight: (d: any) => 0,
         colorAggregation: 'MEAN' as any,
-        // Symmetric color scale: red (loss) → white (no change) → green (gain)
+        // CliMA RdBu-11 perceptual colormap (scientifically optimized for soil/carbon data)
+        // Perceptually uniform, colorblind-safe, intuitive (red=bad, blue=good)
         colorRange: [
-          [139, 0, 0, 200],      // Dark red (degradation)
-          [255, 69, 0, 190],     // Red-orange
-          [255, 255, 255, 0],    // White (no change) - transparent
-          [0, 200, 0, 190],      // Green
-          [0, 100, 0, 200],      // Dark green (restoration)
+          [165, 0, 38, 200],      // Dark red (max degradation) - CliMA stop 0
+          [215, 48, 39, 195],     // Red
+          [244, 109, 67, 190],    // Orange-red
+          [253, 174, 97, 185],    // Light orange
+          [254, 224, 144, 180],   // Pale yellow
+          [255, 255, 191, 0],     // White (zero change) - transparent - CliMA stop 5
+          [224, 243, 248, 180],   // Pale cyan
+          [171, 217, 233, 185],   // Light blue
+          [116, 173, 209, 190],   // Sky blue
+          [69, 117, 180, 195],    // Blue
+          [49, 54, 149, 200],     // Dark blue (max restoration) - CliMA stop 10
         ],
         opacity: 0.9,
       })
@@ -1018,6 +1036,15 @@ function convertFieldToGrid(
   return gridData;
 }
 
+/**
+ * Converts difference data (current - baseline) to grid format for visualization
+ * Applies normalization to map delta values to [-1, +1] range for perceptual color mapping
+ *
+ * @param currentData - Current SOM field data
+ * @param baselineData - Baseline SOM field data (captured at simulation start or user trigger)
+ * @param header - SAB header with grid dimensions and bbox
+ * @returns Grid data with position, delta, and normalizedDelta fields
+ */
 function convertDifferenceToGrid(
   currentData: Float32Array,
   baselineData: Float32Array,
@@ -1028,6 +1055,10 @@ function convertDifferenceToGrid(
   const lonStep = (header.bbox.maxLon - header.bbox.minLon) / gridCols;
   const latStep = (header.bbox.maxLat - header.bbox.minLat) / gridRows;
 
+  // Normalization factor: ±30% SOM change is considered max range for regenerative agriculture
+  // This maps ±0.3 delta to ±1.0 normalized range for color palette
+  const MAX_EXPECTED_DELTA = 0.3;
+
   for (let row = 0; row < gridRows; row++) {
     for (let col = 0; col < gridCols; col++) {
       const idx = row * gridCols + col;
@@ -1035,12 +1066,16 @@ function convertDifferenceToGrid(
       const baseline = baselineData[idx];
       const delta = current - baseline;
 
+      // Normalize delta to [-1, +1] range and clamp to prevent overflow
+      const normalizedDelta = Math.max(-1, Math.min(1, delta / MAX_EXPECTED_DELTA));
+
       const lon = header.bbox.minLon + (col + 0.5) * lonStep;
       const lat = header.bbox.minLat + (row + 0.5) * latStep;
 
       gridData.push({
         position: [lon, lat],
-        delta: delta,
+        delta: delta,  // Raw delta for statistics
+        normalizedDelta: normalizedDelta,  // Normalized delta for color mapping
         current: current,
         baseline: baseline,
       });
@@ -1155,8 +1190,27 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
             const somData = readFieldFromSAB('som');
             if (somData) {
               somBaseline = new Float32Array(somData);
-              console.log('[Render] SOM baseline captured on user request');
-              postMessage({ type: 'baseline-captured' });
+              const timestamp = Date.now();
+              const cells = somData.length;
+              const meanSOM = somData.reduce((a, b) => a + b, 0) / cells;
+
+              console.log(`[Render] ✓ SOM baseline captured at ${new Date(timestamp).toISOString()}`);
+              console.log(`[Render]   Cells: ${cells}, Mean SOM: ${meanSOM.toFixed(4)}`);
+
+              postMessage({
+                type: 'baseline-captured',
+                payload: {
+                  timestamp,
+                  cells,
+                  meanSOM: meanSOM,
+                }
+              });
+            } else {
+              console.warn('[Render] ✗ Cannot capture baseline - no SOM data available');
+              postMessage({
+                type: 'baseline-error',
+                payload: { message: 'No SOM data available' }
+              });
             }
           }
         }

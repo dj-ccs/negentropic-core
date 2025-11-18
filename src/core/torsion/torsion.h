@@ -71,14 +71,16 @@ int compute_torsion_tile(SimulationState* S, size_t x0, size_t y0, size_t nx, si
  * Conservative momentum increment:
  *   Δu ∝ α × ω × dt
  *
- * where α is the coupling coefficient (default: 1e-3).
+ * where α is the LoD-scaled coupling coefficient:
+ *   alpha = 8e-4 * (lod_level / 3.0)^1.5
  *
  * Physics interpretation:
  *   - Vorticity drives secondary circulation
  *   - Small amplitude correction (preserves stability)
- *   - Enhances rotational features in flow
+ *   - LoD scaling: minimal at coarse grids, strong at fine grids
+ *   - Power 1.5: Super-linear enhancement for high-resolution dynamics
  *
- * @param cell Grid cell to update (must be valid pointer)
+ * @param cell Grid cell to update (must be valid pointer, must have lod_level set)
  * @param t Torsion vector (must be valid pointer)
  * @param dt Timestep in seconds
  */

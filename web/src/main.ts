@@ -10,7 +10,22 @@ import {
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   Ion,
-  IonImageryProvider
+  IonImageryProvider,
+  // ORACLE-005: Cesium Primitives for Impact Map
+  PrimitiveCollection,
+  GeometryInstance,
+  RectangleGeometry,
+  Rectangle,
+  PerInstanceColorAppearance,
+  Primitive,
+  ColorGeometryInstanceAttribute,
+  VertexFormat,
+  BlendingState,
+  CesiumTerrainProvider,
+  IonResource,
+  Cartographic,
+  EasingFunction,
+  Math as CesiumMath,
 } from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import type {
@@ -75,6 +90,14 @@ class GeoV1Application {
   private sab: SharedArrayBuffer | null = null;
   private selectedRegion: BoundingBox | null = null;
   private isRunning: boolean = false;
+
+  // ORACLE-005: Cesium Primitives for Impact Map
+  private differenceCollection: PrimitiveCollection | null = null;
+  private differenceInstances: GeometryInstance[] = [];
+  private differencePrimitive: Primitive | null = null;
+  private somBaseline: Float32Array | null = null;
+  private showDifferenceMap: boolean = false;
+  private gridSize: number = 100; // 100x100 grid
 
   // UI Elements
   private loadingScreen: HTMLElement;
@@ -145,6 +168,11 @@ class GeoV1Application {
       // START: Camera sync immediately after initialization
       // This ensures deck.gl layers track the globe even before simulation starts
       this.startCameraSync();
+
+      // ORACLE-005: Initialize difference map after SAB is ready
+      this.updateLoadingStatus('Initializing Impact Map...');
+      this.initDifferenceMap();
+      this.startDifferenceMapLoop();
 
       this.updateLoadingStatus('Ready!');
       this.hideLoadingScreen();
@@ -280,6 +308,17 @@ class GeoV1Application {
         this.monitorImageryLayerState();
       }
 
+      // ORACLE-005: Load CesiumWorldTerrain for real altitude data
+      console.log('Loading world terrain...');
+      this.viewer.terrainProvider = await CesiumTerrainProvider.fromUrl(
+        await IonResource.fromAssetId(1), // Cesium World Terrain
+        {
+          requestVertexNormals: true,
+          requestWaterMask: true
+        }
+      );
+      console.log('✓ World terrain loaded');
+
       // Set initial camera position
       if (DEBUG) console.log('Setting initial camera view...');
       this.viewer.camera.setView({
@@ -287,8 +326,9 @@ class GeoV1Application {
       });
       if (DEBUG) console.log('✓ Camera positioned');
 
-      // Add click handler for region selection
-      this.setupGlobeClickHandler();
+      // ORACLE-005: Setup UX enhancements
+      this.setupClickToFly();
+      this.setupAltitudeDisplay();
 
       // Wait a frame to ensure scene is ready
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -394,7 +434,11 @@ class GeoV1Application {
     }
   }
 
-  private setupGlobeClickHandler() {
+  /**
+   * ORACLE-005: Click-to-fly camera control
+   * Left-click on globe to fly to that location at 5km altitude
+   */
+  private setupClickToFly() {
     if (!this.viewer) return;
 
     const handler = new ScreenSpaceEventHandler(this.viewer.scene.canvas);
@@ -406,13 +450,73 @@ class GeoV1Application {
       );
 
       if (cartesian) {
-        const cartographic = this.viewer!.scene.globe.ellipsoid.cartesianToCartographic(cartesian);
-        const longitude = cartographic.longitude * (180 / Math.PI);
-        const latitude = cartographic.latitude * (180 / Math.PI);
+        const cartographic = Cartographic.fromCartesian(cartesian);
 
+        // Also handle region selection for simulation
+        const longitude = CesiumMath.toDegrees(cartographic.longitude);
+        const latitude = CesiumMath.toDegrees(cartographic.latitude);
         this.onRegionSelected(longitude, latitude);
+
+        // Fly to clicked location at 5km altitude
+        this.viewer!.camera.flyTo({
+          destination: Cartesian3.fromRadians(
+            cartographic.longitude,
+            cartographic.latitude,
+            5000 // 5km altitude for optimal viewing
+          ),
+          orientation: {
+            heading: this.viewer!.camera.heading,
+            pitch: CesiumMath.toRadians(-45), // 45° downward pitch
+            roll: 0
+          },
+          duration: 1.8,
+          easingFunction: EasingFunction.QUADRATIC_IN_OUT
+        });
       }
     }, ScreenSpaceEventType.LEFT_CLICK);
+  }
+
+  /**
+   * ORACLE-005: Real-time altitude display
+   * Shows camera altitude and terrain height on mouse move
+   */
+  private setupAltitudeDisplay() {
+    if (!this.viewer) return;
+
+    // Create HUD element
+    const altitudeDiv = document.createElement('div');
+    altitudeDiv.style.cssText = `
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      background: rgba(0, 0, 0, 0.65);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font: 14px monospace;
+      pointer-events: none;
+      z-index: 1000;
+    `;
+    altitudeDiv.textContent = 'Altitude: --';
+    document.body.appendChild(altitudeDiv);
+
+    // Update on mouse move
+    const handler = new ScreenSpaceEventHandler(this.viewer.scene.canvas);
+
+    handler.setInputAction((movement: any) => {
+      const ray = this.viewer!.camera.getPickRay(movement.endPosition);
+      if (!ray) return;
+
+      const position = this.viewer!.scene.globe.pick(ray, this.viewer!.scene);
+      if (position) {
+        const cartographic = Cartographic.fromCartesian(position);
+        const height = this.viewer!.scene.globe.getHeight(cartographic) || 0;
+        const cameraHeight = this.viewer!.camera.positionCartographic.height;
+
+        altitudeDiv.textContent =
+          `Camera: ${(cameraHeight / 1000).toFixed(2)} km | Terrain: ${height.toFixed(0)} m`;
+      }
+    }, ScreenSpaceEventType.MOUSE_MOVE);
   }
 
   private async onRegionSelected(lon: number, lat: number) {
@@ -715,23 +819,38 @@ class GeoV1Application {
   }
 
   private updateLayerVisibility() {
-    if (!this.renderWorker) return;
+    // ORACLE-005: Handle Cesium primitive difference map
+    const wasShowingDifference = this.showDifferenceMap;
+    this.showDifferenceMap = this.toggleDifferenceCheckbox.checked;
 
-    this.renderWorker.postMessage({
-      type: 'config',
-      payload: {
-        showMoistureLayer: this.toggleMoistureCheckbox.checked,
-        showSOMLayer: this.toggleSOMCheckbox.checked,
-        showVegetationLayer: this.toggleVegetationCheckbox.checked,
-        showDifferenceMap: this.toggleDifferenceCheckbox.checked,
-      },
-    });
+    // Capture baseline when difference map is first enabled
+    if (this.showDifferenceMap && !wasShowingDifference && !this.somBaseline) {
+      this.captureBaseline();
+    }
+
+    // Toggle primitive collection visibility
+    if (this.differenceCollection) {
+      this.differenceCollection.show = this.showDifferenceMap;
+    }
+
+    // Also update render worker layers (for deck.gl layers if still active)
+    if (this.renderWorker) {
+      this.renderWorker.postMessage({
+        type: 'config',
+        payload: {
+          showMoistureLayer: this.toggleMoistureCheckbox.checked,
+          showSOMLayer: this.toggleSOMCheckbox.checked,
+          showVegetationLayer: this.toggleVegetationCheckbox.checked,
+          showDifferenceMap: false, // Disable deck.gl difference layer (now using Cesium)
+        },
+      });
+    }
 
     console.log('Layer visibility updated:', {
       moisture: this.toggleMoistureCheckbox.checked,
       som: this.toggleSOMCheckbox.checked,
       vegetation: this.toggleVegetationCheckbox.checked,
-      difference: this.toggleDifferenceCheckbox.checked,
+      difference: this.showDifferenceMap,
     });
   }
 
@@ -753,6 +872,243 @@ class GeoV1Application {
     setTimeout(() => {
       this.loadingScreen.classList.add('hidden');
     }, 500);
+  }
+
+  // ============================================================================
+  // ORACLE-005: Cesium Primitive Impact Map Implementation
+  // ============================================================================
+
+  /**
+   * Initialize Cesium Primitive-based difference map
+   * Replaces unstable deck.gl implementation with native Cesium geometries
+   */
+  private initDifferenceMap() {
+    if (!this.viewer || !this.sab) {
+      console.warn('[DifferenceMap] Cannot initialize - viewer or SAB not ready');
+      return;
+    }
+
+    console.log('[DifferenceMap] Initializing Cesium primitives...');
+
+    // Create primitive collection
+    this.differenceCollection = new PrimitiveCollection();
+    this.viewer.scene.primitives.add(this.differenceCollection);
+
+    // Create geometry instances
+    this.differenceInstances = this.createDifferenceGeometry();
+
+    // Create primitive with per-instance color appearance
+    this.differencePrimitive = new Primitive({
+      geometryInstances: this.differenceInstances,
+      appearance: new PerInstanceColorAppearance({
+        flat: true,
+        translucent: true,
+        renderState: {
+          depthTest: { enabled: true },
+          blending: BlendingState.ALPHA_BLEND,
+        }
+      }),
+      asynchronous: false
+    });
+
+    this.differenceCollection.add(this.differencePrimitive);
+
+    console.log(`[DifferenceMap] ✓ Initialized with ${this.differenceInstances.length} cells`);
+  }
+
+  /**
+   * Create geometry instances for each grid cell
+   * Uses Rectangle geometry for perfect cell shapes at all angles
+   */
+  private createDifferenceGeometry(): GeometryInstance[] {
+    const instances: GeometryInstance[] = [];
+    const bbox = this.readBBoxFromSAB();
+
+    const lonStep = (bbox.maxLon - bbox.minLon) / this.gridSize;
+    const latStep = (bbox.maxLat - bbox.minLat) / this.gridSize;
+
+    for (let row = 0; row < this.gridSize; row++) {
+      for (let col = 0; col < this.gridSize; col++) {
+        const lon = bbox.minLon + (col + 0.5) * lonStep;
+        const lat = bbox.minLat + (row + 0.5) * latStep;
+
+        const instance = new GeometryInstance({
+          geometry: new RectangleGeometry({
+            rectangle: Rectangle.fromDegrees(
+              bbox.minLon + col * lonStep,
+              bbox.minLat + row * latStep,
+              bbox.minLon + (col + 1) * lonStep,
+              bbox.minLat + (row + 1) * latStep
+            ),
+            height: 10, // 10m above surface to avoid z-fighting
+            vertexFormat: VertexFormat.POSITION_ONLY
+          }),
+          id: `cell-${row}-${col}`,
+          attributes: {
+            color: ColorGeometryInstanceAttribute.fromColor(
+              Color.WHITE.withAlpha(0) // Initially transparent
+            )
+          }
+        });
+
+        instances.push(instance);
+      }
+    }
+
+    return instances;
+  }
+
+  /**
+   * Update difference map colors based on current SOM vs baseline
+   * Called each frame when difference map is visible
+   */
+  private updateDifferenceColors() {
+    if (!this.somBaseline || !this.differenceInstances.length) return;
+
+    const currentSOM = this.readSOMFromSAB();
+    if (!currentSOM) return;
+
+    // Update each instance's color attribute
+    for (let i = 0; i < this.differenceInstances.length; i++) {
+      const current = currentSOM[i];
+      const baseline = this.somBaseline[i];
+      const delta = current - baseline;
+
+      // Normalize to [-1, +1] range (±30% max)
+      const normalizedDelta = Math.max(-1, Math.min(1, delta / 0.3));
+
+      // Get CliMA RdBu-11 color
+      const color = this.getRdBu11Color(normalizedDelta);
+
+      // Update instance color
+      this.differenceInstances[i].attributes.color =
+        ColorGeometryInstanceAttribute.fromColor(color);
+    }
+
+    // Recreate primitive to reflect color changes
+    // Note: Cesium requires primitive recreation for attribute updates
+    if (this.differenceCollection && this.differencePrimitive) {
+      this.differenceCollection.remove(this.differencePrimitive);
+      this.differencePrimitive = new Primitive({
+        geometryInstances: this.differenceInstances,
+        appearance: new PerInstanceColorAppearance({
+          flat: true,
+          translucent: true,
+          renderState: {
+            depthTest: { enabled: true },
+            blending: BlendingState.ALPHA_BLEND,
+          }
+        }),
+        asynchronous: false
+      });
+      this.differenceCollection.add(this.differencePrimitive);
+    }
+  }
+
+  /**
+   * CliMA RdBu-11 perceptual color palette for soil difference mapping
+   * @param normalizedValue - Value in [-1, +1] range (-1=degradation, +1=restoration)
+   * @returns Cesium Color with appropriate alpha
+   */
+  private getRdBu11Color(normalizedValue: number): Color {
+    // Map [-1, +1] to [0, 1] for palette index
+    const t = (normalizedValue + 1) / 2;
+
+    // CliMA RdBu-11 palette (11 stops)
+    const palette = [
+      [165, 0, 38],      // 0.0 - Dark red (max degradation)
+      [215, 48, 39],     // 0.1
+      [244, 109, 67],    // 0.2
+      [253, 174, 97],    // 0.3
+      [254, 224, 144],   // 0.4
+      [255, 255, 191],   // 0.5 - White (no change)
+      [224, 243, 248],   // 0.6
+      [171, 217, 233],   // 0.7
+      [116, 173, 209],   // 0.8
+      [69, 117, 180],    // 0.9
+      [49, 54, 149],     // 1.0 - Dark blue (max restoration)
+    ];
+
+    // Interpolate between palette stops
+    const index = t * 10;
+    const i = Math.floor(index);
+    const frac = index - i;
+    const i1 = Math.min(i, 9);
+    const i2 = Math.min(i + 1, 10);
+
+    const c1 = palette[i1];
+    const c2 = palette[i2];
+
+    const r = c1[0] + (c2[0] - c1[0]) * frac;
+    const g = c1[1] + (c2[1] - c1[1]) * frac;
+    const b = c1[2] + (c2[2] - c1[2]) * frac;
+
+    // Transparency: hide near-zero changes
+    const alpha = Math.abs(normalizedValue) < 0.05 ? 0.0 : 0.78;
+
+    return new Color(r / 255, g / 255, b / 255, alpha);
+  }
+
+  /**
+   * Read SOM field from SharedArrayBuffer
+   * @returns Float32Array of SOM values or null if not available
+   */
+  private readSOMFromSAB(): Float32Array | null {
+    if (!this.sab) return null;
+
+    const headerSize = 128;
+    const gridSize = this.gridSize * this.gridSize;
+    const somOffset = headerSize + gridSize * 4; // Second field (after theta)
+
+    return new Float32Array(this.sab, somOffset, gridSize);
+  }
+
+  /**
+   * Read bounding box from SharedArrayBuffer header
+   * @returns BoundingBox or default Kansas region
+   */
+  private readBBoxFromSAB(): BoundingBox {
+    if (!this.sab) {
+      // Default to Kansas test region
+      return { minLon: -95.1, minLat: 39.9, maxLon: -94.9, maxLat: 40.1 };
+    }
+
+    const view = new DataView(this.sab);
+    // BBox is at offset 24 (after version, epoch, rows, cols, timestamp)
+    return {
+      minLon: view.getFloat32(24, true),
+      minLat: view.getFloat32(28, true),
+      maxLon: view.getFloat32(32, true),
+      maxLat: view.getFloat32(36, true),
+    };
+  }
+
+  /**
+   * Capture current SOM state as baseline for difference mapping
+   */
+  private captureBaseline() {
+    const somData = this.readSOMFromSAB();
+    if (somData) {
+      this.somBaseline = new Float32Array(somData);
+      const meanSOM = somData.reduce((a, b) => a + b, 0) / somData.length;
+      console.log(`[DifferenceMap] ✓ Baseline captured: ${somData.length} cells, mean SOM = ${meanSOM.toFixed(4)}`);
+    } else {
+      console.warn('[DifferenceMap] ✗ Cannot capture baseline - no SOM data');
+    }
+  }
+
+  /**
+   * Start difference map update loop
+   * Runs continuously at ~60 FPS when difference map is visible
+   */
+  private startDifferenceMapLoop() {
+    const update = () => {
+      if (this.showDifferenceMap && this.somBaseline) {
+        this.updateDifferenceColors();
+      }
+      requestAnimationFrame(update);
+    };
+    update();
   }
 }
 

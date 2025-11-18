@@ -332,8 +332,6 @@ let offscreenCanvas: OffscreenCanvas | null = null;
 let sab: SharedArrayBuffer | null = null;
 let fieldOffsets: FieldOffsets | null = null;
 
-// ORACLE-004: ECEF test position (provided by main thread)
-let TEST_ECEF_POSITION: number[] | null = null;
 let isRunning: boolean = false;
 let frameCount: number = 0;
 let lastFPSUpdate: number = Date.now();
@@ -989,46 +987,6 @@ function updateLayers(fieldData: Float32Array) {
     );
   }
 
-  // ============================================================================
-  // ORACLE-004: Corrected Test Layer (ECEF Cartesian)
-  // ============================================================================
-  // Red circle at Kansas, USA (converted to ECEF) with 50km radius
-  // This layer should MOVE and SCALE with the globe
-  // Uses CARTESIAN coordinate system to match MatrixView's raw matrix injection
-  if (TEST_ECEF_POSITION) {
-    const testData = [
-      {
-        position: TEST_ECEF_POSITION,  // [x, y, z] ECEF meters
-        radius: 50000,                  // 50km in meters
-        color: [255, 0, 0],            // Red fill
-      },
-    ];
-
-    layers.push(
-      new ScatterplotLayer({
-        id: 'test-ecef-layer',
-        data: testData,
-        coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,  // CRITICAL: ECEF Cartesian coordinates
-        getPosition: (d: any) => d.position,
-        getRadius: (d: any) => d.radius,
-        radiusUnits: 'meters',  // CRITICAL: Meters for ECEF
-        getFillColor: (d: any) => d.color,
-        getLineColor: [255, 255, 0],  // Yellow outline
-        opacity: 0.8,
-      })
-    );
-
-    // Debug log for test layer (first frame only)
-    if (frameCount === 0) {
-      console.log('[TEST] ORACLE-004: Red scatter layer added in ECEF coordinates');
-      console.log('[TEST] Position:', TEST_ECEF_POSITION, '(meters)');
-      console.log('[TEST] Coordinate system: CARTESIAN (matches MatrixView)');
-      console.log('[TEST] If this circle does NOT move/scale with globe, ECEF conversion failed');
-    }
-  } else if (frameCount === 0) {
-    console.warn('[TEST] ORACLE-004: TEST_ECEF_POSITION not available, skipping test layer');
-  }
-
   deck.setProps({ layers });
 }
 
@@ -1130,12 +1088,6 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
           offscreenCanvas = payload.offscreenCanvas;
           fieldOffsets = payload.fieldOffsets || null;
 
-          // ORACLE-004: Receive ECEF test position from main thread
-          if (payload.testEcefPosition) {
-            TEST_ECEF_POSITION = payload.testEcefPosition; // [x, y, z] in meters
-            console.log('[Worker] ORACLE-004 TEST_ECEF_POSITION:', TEST_ECEF_POSITION);
-          }
-
           console.log('Render Worker received SAB and OffscreenCanvas');
 
           // Load deck.gl modules first
@@ -1149,14 +1101,11 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
           // The "Pixel project matrix not invertible" error occurs when deck.redraw() is called
           // before the camera-sync messages provide a stable viewState.
           setTimeout(() => {
-            // CRITICAL FIX: Add test layer immediately after init to fix initial invisibility
-            // This ensures the layer is visible BEFORE the simulation starts.
-            // The test layer (red dot at Kansas) is added by updateLayers() regardless of fieldData.
-            // Pass empty Float32Array since we don't have simulation data yet.
+            // Initialize layers with empty data (simulation data will arrive later)
             updateLayers(new Float32Array(0));
             deck.redraw();
 
-            console.log('[INIT] Test layer added and initial frame rendered (delayed 100ms)');
+            console.log('[INIT] Initial frame rendered (delayed 100ms)');
 
             // Signal ready AFTER the initial draw completes
             postMessage({ type: 'ready' });
@@ -1229,11 +1178,6 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
           // We update the views array to trigger a re-render with the new matrices
           deck.setProps({ views: [matrixView] });
           deck.redraw(true); // Force immediate redraw
-
-          // Optional: Log face ID for debugging polar transitions
-          if (payload.faceId !== undefined && frameCount % 300 === 0) {
-            console.log(`[Camera] CliMA Face: ${payload.faceId} (0=+Z north, 1=-Z south, 2-5=equatorial)`);
-          }
         }
         break;
 

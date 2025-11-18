@@ -550,6 +550,68 @@ The architecture documentation is organized into nine core specifications:
 
 ---
 
+### ORACLE-004 Follow-Up: MatrixView Viewport Fix (Nov 18, 2025)
+
+**Context:** After implementing ORACLE-004's raw matrix injection, camera synchronization logs showed correct execution ("CliMA Face: X" firing), but the red dot test layer remained invisible. No WebGL errors were reported.
+
+**Root Cause:**
+
+The `MatrixView.getViewport()` method was returning a **plain JavaScript object** instead of a proper **deck.gl Viewport instance**. deck.gl layers with `COORDINATE_SYSTEM.LNGLAT` require a Viewport instance that implements:
+- `project()` - Screen to world coordinate transformation
+- `unproject()` - World to screen coordinate transformation
+- `projectPosition()` - Geographic coordinate (lon/lat) to world coordinate (ECEF) conversion
+
+Without a proper Viewport instance, deck.gl could not perform the necessary coordinate transformations, causing layers to be invisible despite correct matrix synchronization.
+
+**Solution:**
+
+1. **Import Viewport class** from `@deck.gl/core` in `loadDeckModules()`
+2. **Modify MatrixView.getViewport()** to return `new Viewport(...)` instead of a plain object
+3. **Viewport construction** uses raw matrices from Cesium:
+   ```typescript
+   return new Viewport({
+     id: this.id,
+     x: 0,
+     y: 0,
+     width,
+     height,
+     viewMatrix: this.viewMatrix,        // From Cesium camera
+     projectionMatrix: this.projectionMatrix,  // Aligned with CliMA face rotation
+     near: 0.1,
+     far: 100000000.0,
+   });
+   ```
+
+**Coordinate Transformation Pipeline:**
+
+1. **Layer data:** Geographic coordinates `[-95, 40]` (longitude, latitude)
+2. **Viewport.projectPosition():** LNGLAT → ECEF world coordinates
+3. **viewMatrix:** ECEF world → Camera space (from Cesium)
+4. **projectionMatrix:** Camera space → Clip space (aligned by CliMA rotation)
+5. **Viewport.project():** Clip space → Screen coordinates
+
+**Key Insight:**
+
+The MatrixView architecture requires **both**:
+- **Raw matrices** from Cesium (achieved in ORACLE-004)
+- **Proper Viewport instance** for coordinate transformations (fixed here)
+
+Layers use `COORDINATE_SYSTEM.LNGLAT` (geographic coordinates), and the Viewport's built-in transformation methods convert these to world coordinates before applying Cesium's raw view/projection matrices.
+
+**Files Modified:**
+- `web/src/workers/render-worker.ts`:
+  - Added `Viewport` import from `@deck.gl/core`
+  - Modified `MatrixView.getViewport()` to return `new Viewport(...)`
+
+**Verification:**
+- Red dot test layer at Kansas, USA `[-95, 40]` with 50km radius should be visible
+- Layer should correctly move and scale with globe rotation/zoom
+- No "matrix not invertible" errors in console
+
+**Status:** ✅ Implemented (commit b83fbf6, Nov 18, 2025) - Awaiting browser testing
+
+---
+
 ## Document Maintenance
 
 **Version Control:**

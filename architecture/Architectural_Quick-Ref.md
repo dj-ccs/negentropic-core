@@ -648,6 +648,97 @@ These additions complete the MatrixView's implementation of the deck.gl View int
 
 ---
 
+### ORACLE-004 Follow-Up: ECEF Coordinate Alignment (Nov 18, 2025)
+
+**Context:** After implementing MatrixView with complete View API compliance, the red dot test layer remained invisible. Camera synchronization and matrix injection were working correctly (confirmed by CliMA Face logs), but no layers were rendering.
+
+**Root Cause Analysis:**
+
+The coordinate system mismatch was architectural, not a deck.gl API bug:
+
+1. **MatrixView operates in raw matrix mode** - It accepts Cesium's ECEF view/projection matrices directly and bypasses all internal coordinate transformations
+2. **Test layer used `COORDINATE_SYSTEM.LNGLAT`** with geographic coordinates `[-95, 40]`
+3. **Projection mismatch:** The MatrixView expects all layer data in **ECEF Cartesian coordinates (meters)**, not longitude/latitude degrees
+
+When deck.gl received `[-95, 40]` in LNGLAT mode with a MatrixView:
+- The view treated `[-95, 40]` as **ECEF meters** (approximately 95 meters from origin on X-axis)
+- This placed the point far off-screen, near Earth's core, causing it to be culled
+- No transformation from geographic to ECEF occurred because MatrixView bypasses that pipeline
+
+**Solution:**
+
+**Critical Architectural Principle:** When using raw Cesium matrices (ECEF coordinate system), **all deck.gl layers must supply data in ECEF coordinates and use `COORDINATE_SYSTEM.CARTESIAN`**.
+
+**Implementation:**
+
+1. **Main Thread (`main.ts`):**
+   - Compute ECEF position after Cesium initialization:
+     ```typescript
+     const testCart = Cartesian3.fromDegrees(-95.0, 40.0);
+     TEST_ECEF_POSITION = [testCart.x, testCart.y, testCart.z];
+     ```
+   - Pass ECEF position to render worker via init payload:
+     ```typescript
+     testEcefPosition: TEST_ECEF_POSITION  // [x, y, z] in meters
+     ```
+
+2. **Render Worker (`render-worker.ts`):**
+   - Receive ECEF position from main thread
+   - Convert test layer to CARTESIAN coordinate system:
+     ```typescript
+     coordinateSystem: COORDINATE_SYSTEM.CARTESIAN  // ECEF meters
+     position: TEST_ECEF_POSITION  // [x, y, z] instead of [lon, lat]
+     ```
+
+**Coordinate System Pipeline:**
+
+| Component | Coordinate System | Format |
+|-----------|------------------|--------|
+| Cesium Globe | ECEF (WGS84) | Cartesian3 (meters) |
+| Cesium Camera Matrices | ECEF (view/projection) | Float32Array (4×4) |
+| MatrixView | ECEF (raw matrices) | Float32Array (4×4) |
+| **deck.gl Layers** | **ECEF (CARTESIAN)** | **[x, y, z] meters** |
+| Test Layer (old) | ❌ LNGLAT | ❌ [-95, 40] degrees |
+| Test Layer (new) | ✅ CARTESIAN | ✅ [x, y, z] meters |
+
+**Key Insight:**
+
+The MatrixView architecture creates a **pure ECEF rendering pipeline**:
+- Cesium provides ECEF view/projection matrices
+- MatrixView injects these matrices directly into deck.gl
+- **All layers must therefore provide ECEF coordinates**
+
+This is fundamentally different from deck.gl's standard GlobeView, which accepts LNGLAT data and internally converts to ECEF.
+
+**Files Modified:**
+- `web/src/main.ts`:
+  - Added `TEST_GEOG` constant for geographic test point
+  - Added `TEST_ECEF_POSITION` computation using `Cartesian3.fromDegrees()`
+  - Modified render worker init message to include `testEcefPosition`
+- `web/src/workers/render-worker.ts`:
+  - Added `TEST_ECEF_POSITION` global variable
+  - Modified init handler to receive ECEF position from main thread
+  - Updated test layer to use `COORDINATE_SYSTEM.CARTESIAN`
+  - Changed test layer position from `[-95, 40]` to `TEST_ECEF_POSITION`
+
+**Expected Results:**
+- Red dot visible at Kansas, USA (geographic [-95, 40])
+- Layer correctly attached to globe surface
+- Layer scales and moves with camera (zoom/pan/rotate)
+- No off-screen clipping or culling
+- No coordinate transformation errors
+
+**Validation:**
+1. Open browser console and verify log: `[Worker] ORACLE-004 TEST_ECEF_POSITION: [x, y, z]`
+2. Verify ECEF values are large (~4-6 million meters)
+3. Confirm red dot is visible on globe at Kansas
+4. Test camera movements: rotate, zoom, pan - dot must stay attached to surface
+5. Navigate to polar regions - dot must remain stable (no flickering/offset)
+
+**Status:** ✅ Implemented (Nov 18, 2025) - Awaiting browser testing
+
+---
+
 ## Document Maintenance
 
 **Version Control:**

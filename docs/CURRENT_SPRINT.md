@@ -104,6 +104,24 @@ Build the 3-thread application skeleton.
 
 **Commit:** 0192383 (2025-11-18)
 
+#### ORACLE-004 Follow-Up: ECEF Coordinate Alignment (2025-11-18):
+**Problem:** After implementing ORACLE-004 matrix injection and MatrixView API compliance, the red dot test layer remained invisible despite correct camera synchronization.
+
+**Root Cause:** Coordinate system mismatch. The MatrixView operates in raw ECEF matrix mode and expects all layer data in **ECEF Cartesian coordinates (meters)**, not longitude/latitude degrees. The test layer was using `COORDINATE_SYSTEM.LNGLAT` with position `[-95, 40]`, which MatrixView interpreted as ECEF meters (95 meters from origin), causing off-screen culling.
+
+**Solution:**
+1. **Main thread:** Convert test point to ECEF using `Cartesian3.fromDegrees(-95.0, 40.0)`
+2. **Pass to worker:** Send ECEF position `[x, y, z]` in init payload
+3. **Layer update:** Change test layer to use `COORDINATE_SYSTEM.CARTESIAN` with ECEF position
+
+**Key Principle:** When using MatrixView with raw Cesium matrices, **all deck.gl layers must supply data in ECEF coordinates and use `COORDINATE_SYSTEM.CARTESIAN`**. This creates a pure ECEF rendering pipeline from Cesium → MatrixView → deck.gl layers.
+
+**Files Modified:**
+- `web/src/main.ts` - Added ECEF position computation and worker payload
+- `web/src/workers/render-worker.ts` - Updated test layer to CARTESIAN with ECEF coordinates
+
+**Status:** ✅ Complete (2025-11-18) - Awaiting browser testing
+
 #### Architecture:
 ```
 Main Thread (main.ts)

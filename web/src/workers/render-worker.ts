@@ -321,6 +321,7 @@ let _GlobeView: any; // Note: GlobeView is exported as _GlobeView (experimental 
 let COORDINATE_SYSTEM: any;
 let deckModulesLoaded = false;
 let matrixView: any; // Global reference to custom MatrixView instance
+let MatrixViewClass: any; // MatrixView class (defined after View is loaded)
 
 // ============================================================================
 // Worker State
@@ -371,98 +372,102 @@ let somBaseline: Float32Array | null = null;
 // ============================================================================
 
 /**
- * Custom MatrixView class that replaces _GlobeView
+ * Creates the MatrixView class that replaces _GlobeView
  * Accepts raw view and projection matrices from Cesium and injects them directly
  * into the deck.gl rendering pipeline, bypassing all internal projection calculations.
  *
  * This is the architectural solution to the projection mismatch problem.
+ *
+ * CRITICAL: This function must be called AFTER loadDeckModules() completes,
+ * as it extends the View base class which is loaded dynamically.
  */
-class MatrixView {
-  viewMatrix: Float32Array;
-  projectionMatrix: Float32Array;
-  id: string;
-  props: any; // Required by deck.gl internal rendering code
+function createMatrixViewClass() {
+  return class MatrixView extends View {
+    viewMatrix: Float32Array;
+    projectionMatrix: Float32Array;
+    props: any;
 
-  constructor(props: any = {}) {
-    // Store props with defaults for deck.gl API compliance
-    this.props = {
-      id: props.id || 'matrix-view',
-      controller: props.controller !== undefined ? props.controller : false,
-      clear: props.clear !== undefined ? props.clear : true, // Required for DrawLayersPass
-      ...props
-    };
+    constructor(props: any = {}) {
+      super(props);
 
-    this.id = this.props.id;
+      // CRITICAL FIX: Initialize this.props to satisfy DrawLayersPass
+      // The DrawLayersPass destructures view.props.clear and view.props.clearDepth
+      this.props = {
+        clear: true,
+        clearDepth: true,
+        ...props
+      };
 
-    // Initialize matrices to identity to avoid "not invertible" error on first frame
-    this.viewMatrix = new Float32Array(16);
-    this.viewMatrix[0] = this.viewMatrix[5] = this.viewMatrix[10] = this.viewMatrix[15] = 1;
+      // Initialize matrices to identity to avoid "not invertible" error on first frame
+      this.viewMatrix = new Float32Array(16);
+      this.viewMatrix[0] = this.viewMatrix[5] = this.viewMatrix[10] = this.viewMatrix[15] = 1;
 
-    this.projectionMatrix = new Float32Array(16);
-    this.projectionMatrix[0] = this.projectionMatrix[5] = this.projectionMatrix[10] = this.projectionMatrix[15] = 1;
-  }
-
-  /**
-   * Override getViewport to use raw matrices
-   * This method is called by deck.gl to compute the viewport for rendering
-   *
-   * CRITICAL FIX: Return a proper Viewport instance, not a plain object.
-   * deck.gl layers with COORDINATE_SYSTEM.LNGLAT need a proper Viewport
-   * with methods like project(), unproject(), and projectPosition() for
-   * geographic coordinate transformation.
-   */
-  getViewport(options: { width: number; height: number }) {
-    const { width, height } = options;
-
-    // Create a proper Viewport instance with our raw matrices
-    // This enables deck.gl to properly transform LNGLAT coordinates
-    return new Viewport({
-      id: this.id,
-      x: 0,
-      y: 0,
-      width,
-      height,
-      viewMatrix: this.viewMatrix,
-      projectionMatrix: this.projectionMatrix,
-      // Near/far clipping planes to match Cesium's frustum
-      near: 0.1,
-      far: 100000000.0,
-    });
-  }
-
-  /**
-   * Stub methods to satisfy deck.gl's View interface
-   */
-  equals() { return false; }
-
-  makeViewport(opts: any) {
-    return this.getViewport({
-      width: opts?.width || 800,
-      height: opts?.height || 600
-    });
-  }
-
-  getViewStateId() { return this.id; }
-
-  /**
-   * Filter view state by this view's ID
-   * deck.gl ViewManager requires this to extract view-specific state from global state
-   */
-  filterViewState(viewState: any) {
-    // If viewState is an object with view IDs as keys, extract this view's state
-    if (viewState && typeof viewState === 'object' && this.id in viewState) {
-      return viewState[this.id];
+      this.projectionMatrix = new Float32Array(16);
+      this.projectionMatrix[0] = this.projectionMatrix[5] = this.projectionMatrix[10] = this.projectionMatrix[15] = 1;
     }
-    // Otherwise return the entire viewState (single-view scenario)
-    return viewState;
-  }
 
-  /**
-   * Stub for container creation (required by some deck.gl versions)
-   */
-  makeContainer(opts: any) {
-    return {};
-  }
+    /**
+     * Override getViewport to use raw matrices
+     * This method is called by deck.gl to compute the viewport for rendering
+     *
+     * CRITICAL FIX: Return a proper Viewport instance, not a plain object.
+     * deck.gl layers with COORDINATE_SYSTEM.LNGLAT need a proper Viewport
+     * with methods like project(), unproject(), and projectPosition() for
+     * geographic coordinate transformation.
+     */
+    getViewport(options: { width: number; height: number }) {
+      const { width, height } = options;
+
+      // Create a proper Viewport instance with our raw matrices
+      // This enables deck.gl to properly transform LNGLAT coordinates
+      return new Viewport({
+        id: this.id,
+        x: 0,
+        y: 0,
+        width,
+        height,
+        viewMatrix: this.viewMatrix,
+        projectionMatrix: this.projectionMatrix,
+        // Near/far clipping planes to match Cesium's frustum
+        near: 0.1,
+        far: 100000000.0,
+      });
+    }
+
+    /**
+     * Stub methods to satisfy deck.gl's View interface
+     */
+    equals() { return false; }
+
+    makeViewport(opts: any) {
+      return this.getViewport({
+        width: opts?.width || 800,
+        height: opts?.height || 600
+      });
+    }
+
+    getViewStateId() { return this.id; }
+
+    /**
+     * Filter view state by this view's ID
+     * deck.gl ViewManager requires this to extract view-specific state from global state
+     */
+    filterViewState(viewState: any) {
+      // If viewState is an object with view IDs as keys, extract this view's state
+      if (viewState && typeof viewState === 'object' && this.id in viewState) {
+        return viewState[this.id];
+      }
+      // Otherwise return the entire viewState (single-view scenario)
+      return viewState;
+    }
+
+    /**
+     * Stub for container creation (required by some deck.gl versions)
+     */
+    makeContainer(opts: any) {
+      return {};
+    }
+  };
 }
 
 // ============================================================================
@@ -485,6 +490,10 @@ async function loadDeckModules() {
     COORDINATE_SYSTEM = deckCore.COORDINATE_SYSTEM;
     GridLayer = deckAggregationLayers.GridLayer;
     ScatterplotLayer = deckLayers.ScatterplotLayer;
+
+    // CRITICAL: Create MatrixView class after View is loaded
+    // This allows MatrixView to properly extend View
+    MatrixViewClass = createMatrixViewClass();
 
     deckModulesLoaded = true;
     console.log('✓ Deck.gl modules loaded in Render Worker');
@@ -602,7 +611,7 @@ function initializeDeck(canvas: OffscreenCanvas) {
 
     // ORACLE-004: Initialize deck.gl with Custom MatrixView (replaces _GlobeView)
     // Create global MatrixView instance for direct matrix injection
-    matrixView = new MatrixView({ id: 'matrix-view' });
+    matrixView = new MatrixViewClass({ id: 'matrix-view' });
 
     deck = new Deck({
       canvas: canvas as any,

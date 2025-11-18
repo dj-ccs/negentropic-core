@@ -769,6 +769,70 @@ This is fundamentally different from deck.gl's standard GlobeView, which accepts
 
 ---
 
+### ORACLE-004 Follow-Up: MatrixView Props Fix (Nov 18, 2025)
+
+**Context:** After implementing ECEF coordinate alignment, a new error appeared in deck.gl's internal rendering code:
+```
+Cannot destructure property 'clear' of 'view.props' as it is undefined
+```
+
+**Root Cause:**
+
+The MatrixView class did not have a `props` property that deck.gl's internal rendering pipeline expects. Specifically, the `DrawLayersPass` class tries to destructure `{ clear } = view.props`, which failed because `view.props` was undefined.
+
+This error only appeared after the ECEF coordinate fix because:
+1. Before ECEF fix: Layers weren't being drawn (wrong coordinates), so rendering pipeline never reached `DrawLayersPass`
+2. After ECEF fix: Layers had correct coordinates, deck.gl attempted to render them, hit `DrawLayersPass`, and failed when accessing `view.props.clear`
+
+**Solution:**
+
+Added a `props` property to MatrixView with appropriate defaults:
+
+```typescript
+class MatrixView {
+  props: any; // Required by deck.gl internal rendering code
+
+  constructor(props: any = {}) {
+    this.props = {
+      id: props.id || 'matrix-view',
+      controller: props.controller !== undefined ? props.controller : false,
+      clear: props.clear !== undefined ? props.clear : true, // Required for DrawLayersPass
+      ...props
+    };
+    this.id = this.props.id;
+    // ... rest of initialization
+  }
+}
+```
+
+**Key Properties:**
+- `clear: true` - Tells deck.gl to clear the canvas before rendering (required by `DrawLayersPass`)
+- `controller: false` - Disables deck.gl's internal camera controller (main thread handles camera via Cesium)
+- `id: 'matrix-view'` - Unique identifier for the view
+
+**Why This Matters:**
+
+deck.gl's View API expects all View instances to have a `props` object that contains configuration settings. This is part of deck.gl's internal contract, even though it's not explicitly documented in the public API. The `clear` property specifically controls whether the rendering pass should clear the WebGL framebuffer before drawing.
+
+**Files Modified:**
+- `web/src/workers/render-worker.ts`:
+  - Added `props` property to MatrixView class
+  - Updated constructor to accept and store props with defaults
+
+**Expected Results:**
+- No more "Cannot destructure property 'clear'" errors
+- deck.gl rendering pipeline completes successfully
+- Layers render to canvas with proper clearing behavior
+
+**Validation:**
+1. Check browser console - no "view.props" errors
+2. Verify rendering completes without WebGL errors
+3. Confirm canvas clears properly between frames (no ghosting/trails)
+
+**Status:** ✅ Implemented (Nov 18, 2025) - Awaiting browser testing
+
+---
+
 ## Document Maintenance
 
 **Version Control:**

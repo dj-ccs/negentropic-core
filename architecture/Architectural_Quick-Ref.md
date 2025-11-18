@@ -602,13 +602,27 @@ Layers use `COORDINATE_SYSTEM.LNGLAT` (geographic coordinates), and the Viewport
 - `web/src/workers/render-worker.ts`:
   - Added `Viewport` import from `@deck.gl/core`
   - Modified `MatrixView.getViewport()` to return `new Viewport(...)`
+  - Added `getViewStateId()` method to MatrixView for API compliance
+
+**Additional Fix (API Compliance):**
+
+After implementing the Viewport instance fix, a `TypeError: view.getViewStateId is not a function` error was discovered. The deck.gl `ViewManager` requires all View instances to implement `getViewStateId()`, which returns a unique identifier for the view state.
+
+**Solution:** Added `getViewStateId()` method to MatrixView stub methods:
+```typescript
+getViewStateId() { return this.id; }
+```
+
+This simple addition satisfies the deck.gl ViewManager's API contract, allowing the rendering pipeline to proceed past initialization.
 
 **Verification:**
 - Red dot test layer at Kansas, USA `[-95, 40]` with 50km radius should be visible
 - Layer should correctly move and scale with globe rotation/zoom
 - No "matrix not invertible" errors in console
+- No "view.getViewStateId is not a function" errors in console
+- deck.gl ViewManager successfully initializes
 
-**Status:** ✅ Implemented (commit b83fbf6, Nov 18, 2025) - Awaiting browser testing
+**Status:** ✅ Implemented (commits b83fbf6, 3521920; Nov 18, 2025) - Awaiting browser testing
 
 ---
 

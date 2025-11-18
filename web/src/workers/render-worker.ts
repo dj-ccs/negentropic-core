@@ -372,6 +372,16 @@ let somBaseline: Float32Array | null = null;
 // ============================================================================
 
 /**
+ * WeakMap to store matrix data externally to avoid frozen object issues
+ * This allows us to store viewMatrix and projectionMatrix without
+ * modifying the frozen View instance
+ */
+const matrixStorage = new WeakMap<any, {
+  viewMatrix: Float32Array;
+  projectionMatrix: Float32Array;
+}>();
+
+/**
  * Creates the MatrixView class that replaces _GlobeView
  * Accepts raw view and projection matrices from Cesium and injects them directly
  * into the deck.gl rendering pipeline, bypassing all internal projection calculations.
@@ -382,10 +392,10 @@ let somBaseline: Float32Array | null = null;
  * as it extends the View base class which is loaded dynamically.
  */
 function createMatrixViewClass() {
-  return class MatrixView extends View {
+  // Create the MatrixView class
+  const MatrixViewClass = class MatrixView extends View {
     constructor(props: any = {}) {
-      // CRITICAL: Merge props BEFORE calling super() to avoid non-extensible object error
-      // deck.gl's View base class freezes/seals the object after super() is called
+      // Merge props and call super()
       const mergedProps = {
         id: 'matrix-view',
         clear: true,
@@ -395,16 +405,47 @@ function createMatrixViewClass() {
 
       super(mergedProps);
 
-      // CRITICAL: Initialize matrices dynamically (not as class fields) to avoid
-      // "Cannot define property, object is not extensible" error.
-      // TypeScript field declarations are transpiled to assignments AFTER super(),
-      // which fails if deck.gl's View freezes the instance.
-      // Using (this as any) bypasses TypeScript checking for dynamic properties.
-      (this as any).viewMatrix = new Float32Array(16);
-      (this as any).viewMatrix[0] = (this as any).viewMatrix[5] = (this as any).viewMatrix[10] = (this as any).viewMatrix[15] = 1;
+      // CRITICAL: Use WeakMap storage pattern to avoid frozen object issues
+      // Store matrices externally and access via getters/setters
+      const viewMatrix = new Float32Array([1, 0, 0, 0,
+                                          0, 1, 0, 0,
+                                          0, 0, 1, 0,
+                                          0, 0, 0, 1]);
+      const projectionMatrix = new Float32Array([1, 0, 0, 0,
+                                                 0, 1, 0, 0,
+                                                 0, 0, 1, 0,
+                                                 0, 0, 0, 1]);
 
-      (this as any).projectionMatrix = new Float32Array(16);
-      (this as any).projectionMatrix[0] = (this as any).projectionMatrix[5] = (this as any).projectionMatrix[10] = (this as any).projectionMatrix[15] = 1;
+      // Store in WeakMap for this instance
+      matrixStorage.set(this, { viewMatrix, projectionMatrix });
+    }
+
+    /**
+     * Getters for viewMatrix and projectionMatrix
+     * These retrieve the matrices from external WeakMap storage
+     */
+    get viewMatrix(): Float32Array {
+      const data = matrixStorage.get(this);
+      return data ? data.viewMatrix : new Float32Array(16);
+    }
+
+    set viewMatrix(value: Float32Array) {
+      const data = matrixStorage.get(this);
+      if (data) {
+        data.viewMatrix = value;
+      }
+    }
+
+    get projectionMatrix(): Float32Array {
+      const data = matrixStorage.get(this);
+      return data ? data.projectionMatrix : new Float32Array(16);
+    }
+
+    set projectionMatrix(value: Float32Array) {
+      const data = matrixStorage.get(this);
+      if (data) {
+        data.projectionMatrix = value;
+      }
     }
 
     /**
@@ -418,6 +459,7 @@ function createMatrixViewClass() {
      */
     getViewport(options: { width: number; height: number }) {
       const { width, height } = options;
+      const data = matrixStorage.get(this);
 
       // Create a proper Viewport instance with our raw matrices
       // This enables deck.gl to properly transform LNGLAT coordinates
@@ -427,8 +469,8 @@ function createMatrixViewClass() {
         y: 0,
         width,
         height,
-        viewMatrix: (this as any).viewMatrix,
-        projectionMatrix: (this as any).projectionMatrix,
+        viewMatrix: data ? data.viewMatrix : new Float32Array(16),
+        projectionMatrix: data ? data.projectionMatrix : new Float32Array(16),
         // Near/far clipping planes to match Cesium's frustum
         near: 0.1,
         far: 100000000.0,
@@ -469,6 +511,9 @@ function createMatrixViewClass() {
       return {};
     }
   };
+
+  // Return the MatrixView class
+  return MatrixViewClass;
 }
 
 // ============================================================================
@@ -1170,10 +1215,13 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
         // ORACLE-004: Direct Matrix Injection
         // Bypasses GlobeView's internal calculation to solve offset/shearing/lag/polar issues
         if (payload?.viewMatrix && payload?.projectionMatrix && deck && matrixView) {
-          // Copy raw matrices to the custom view instance
+          // Copy raw matrices to the custom view instance (stored in WeakMap)
           // Using Float32Array.set for optimal performance
-          (matrixView as any).viewMatrix.set(payload.viewMatrix);
-          (matrixView as any).projectionMatrix.set(payload.projectionMatrix);
+          const data = matrixStorage.get(matrixView);
+          if (data) {
+            data.viewMatrix.set(payload.viewMatrix);
+            data.projectionMatrix.set(payload.projectionMatrix);
+          }
 
           // CRITICAL: Force deck.gl to recognize the matrix update
           // We update the views array to trigger a re-render with the new matrices

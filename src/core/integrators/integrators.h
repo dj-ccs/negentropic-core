@@ -224,6 +224,38 @@ void integrator_config_set_dt(IntegratorConfig* cfg, double dt);
  */
 void integrator_config_set_preserve_casimirs(IntegratorConfig* cfg, bool enable);
 
+/* ========================================================================
+ * LOD-GATED DISPATCH
+ * ======================================================================== */
+
+/**
+ * Integrate a grid cell with LoD-gated integrator selection.
+ *
+ * Automatically selects integrator based on LoD level and error estimates.
+ * Implements dynamic escalation: RK4 → RKMK4 → Clebsch.
+ *
+ * @param cell Grid cell to integrate (modified in-place)
+ * @param cfg Integration configuration
+ * @param ws Workspace
+ * @return 0 on success, error code on failure
+ */
+int lod_gated_step_cell(GridCell* cell, const IntegratorConfig* cfg, IntegratorWorkspace* ws);
+
+/**
+ * Integrate a tile of cells with LoD-gated dispatch.
+ *
+ * More efficient than per-cell dispatch (batches by method, computes torsion once).
+ *
+ * @param cells Array of grid cells (modified in-place)
+ * @param num_cells Number of cells in tile
+ * @param cfg Integration configuration
+ * @param ws Workspace (one per tile)
+ * @return 0 on success, error code on failure
+ */
+int lod_gated_step_tile(GridCell* cells, size_t num_cells,
+                        const IntegratorConfig* cfg,
+                        IntegratorWorkspace* ws);
+
 #ifdef __cplusplus
 }
 #endif

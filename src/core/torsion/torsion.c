@@ -3,6 +3,9 @@
 // Discrete curl operator using CliMA-style weak curl for cubed-sphere geometry.
 // Implements 5-point stencil with edge-aware boundary handling.
 //
+// LoD-scaled momentum coupling (v2.2 LOCKED DECISION #3):
+//   alpha = 8e-4 * (lod_level / 3.0)^1.5
+//
 // Reference: docs/integrators.md section 3.3, ORACLE Fusion pseudocode section 1
 // Author: negentropic-core team
 // Version: 2.2.0
@@ -201,7 +204,16 @@ void apply_torsion_tendency(GridCell* cell, const neg_torsion_t* t, double dt) {
     if (!cell || !t) return;
 
     // Momentum tendency: Δu ∝ α × ω × dt
-    const double alpha = 1e-3;  // Coupling coefficient
+    // LoD-scaled coupling (LOCKED DECISION #3):
+    //   alpha = 8e-4 * (lod_level / 3.0)^1.5
+    //
+    // Rationale:
+    //   - Coarse LoD (0-1): Minimal coupling (grid too coarse for vorticity)
+    //   - Fine LoD (2-3): Strong coupling (high-resolution dynamics)
+    //   - Power 1.5: Super-linear scaling for enhanced fine-scale features
+
+    double lod_factor = (double)cell->lod_level / 3.0;
+    double alpha = 8e-4 * pow(lod_factor, 1.5);
 
     // For 2.5D, torsion primarily affects horizontal momentum
     // Simple implementation: add small perturbation based on vorticity magnitude

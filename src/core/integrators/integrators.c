@@ -18,9 +18,11 @@
 // Defined in rkmk4.c
 int rkmk4_integrate_cell(GridCell* cell, const IntegratorConfig* cfg, IntegratorWorkspace* ws);
 
+// Defined in clebsch_collective.c
+int clebsch_integrate_cell(GridCell* cell, const IntegratorConfig* cfg, IntegratorWorkspace* ws);
+
 // TODO: Define in future files
 int rk4_integrate_cell(GridCell* cell, const IntegratorConfig* cfg, IntegratorWorkspace* ws);
-int clebsch_integrate_cell(GridCell* cell, const IntegratorConfig* cfg, IntegratorWorkspace* ws);
 
 /* ========================================================================
  * MAIN DISPATCHER
@@ -116,18 +118,4 @@ int rk4_integrate_cell(GridCell* cell, const IntegratorConfig* cfg, IntegratorWo
     return 0;
 }
 
-/**
- * Clebsch-Collective integrator (stub).
- *
- * TODO: Full implementation in clebsch_collective.c (Week 2)
- */
-int clebsch_integrate_cell(GridCell* cell, const IntegratorConfig* cfg, IntegratorWorkspace* ws) {
-    (void)cell;
-    (void)cfg;
-    (void)ws;
-
-    // Stub: no-op for now
-    // Will be implemented in Phase 1.3 (Week 2)
-
-    return 0;
-}
+// Clebsch-Collective integrator implemented in clebsch_collective.c

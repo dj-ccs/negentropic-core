@@ -425,6 +425,7 @@ class MatrixView {
    */
   equals() { return false; }
   makeViewport() { return this.getViewport({ width: 800, height: 600 }); }
+  getViewStateId() { return this.id; }
 }
 
 // ============================================================================

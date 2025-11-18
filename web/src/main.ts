@@ -663,8 +663,10 @@ class GeoV1Application {
     // - When viewing whole globe (altitude ~15M meters), we want ~1.5
     // - When zoomed in close (altitude ~1000 meters), we want ~0.01
     //
-    // Scale factor: 0.85 (proven in testing to match visual expectations)
-    const deckAltitude = normalizedAltitude * 0.85;
+    // Scale factor: 0.50 (FINAL CALIBRATION to resolve magnitude sync failure)
+    // Previous values: 0.65 (too subtle), 0.85 (magnitude mismatch)
+    // This lower factor should provide tighter coupling to Cesium's altitude
+    const deckAltitude = normalizedAltitude * 0.50;
 
     // Clamp to reasonable range (0.001 = very close, 10 = very far)
     return Math.max(0.001, Math.min(10, deckAltitude));

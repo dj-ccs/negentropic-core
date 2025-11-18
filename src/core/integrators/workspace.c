@@ -1,18 +1,18 @@
-// workspace.c - Integrator Workspace Management
+// workspace.c - Integrator Workspace Management (Doom Ethos v2.2)
 //
 // Memory management for integrator scratch space.
-// One allocation per worker, reused across steps.
+// Uses slab allocator for zero-malloc determinism.
 //
 // Author: negentropic-core team
-// Version: 2.2.0
+// Version: 2.2.0 (Doom Ethos upgrade)
 
 #include "integrators.h"
 #include "workspace.h"
-#include <stdlib.h>
+#include "workspace_slab.h"
 #include <string.h>
 
 /* ========================================================================
- * WORKSPACE MANAGEMENT
+ * WORKSPACE MANAGEMENT (DOOM ETHOS: NO MALLOC IN HOT PATHS)
  * ======================================================================== */
 
 IntegratorWorkspace* integrator_workspace_create(size_t max_dim) {
@@ -20,9 +20,10 @@ IntegratorWorkspace* integrator_workspace_create(size_t max_dim) {
         return NULL;  // Sanity check: dimension must be reasonable
     }
 
-    IntegratorWorkspace* ws = (IntegratorWorkspace*)calloc(1, sizeof(IntegratorWorkspace));
+    // DOOM ETHOS: Use slab allocator instead of calloc
+    IntegratorWorkspace* ws = workspace_slab_alloc_integrator();
     if (!ws) {
-        return NULL;
+        return NULL;  // Pool exhausted
     }
 
     ws->max_dim = max_dim;
@@ -41,10 +42,13 @@ IntegratorWorkspace* integrator_workspace_create(size_t max_dim) {
 void integrator_workspace_destroy(IntegratorWorkspace* ws) {
     if (!ws) return;
 
-    // TODO: Free LUT handles if allocated
-    // For now, they're NULL so no action needed
+    // Validate this is from our slab (catch double-free bugs)
+    if (!workspace_slab_validate_integrator(ws)) {
+        return;  // Not from slab, don't free
+    }
 
-    free(ws);
+    // DOOM ETHOS: Return to slab pool instead of free
+    workspace_slab_free_integrator(ws);
 }
 
 void integrator_workspace_reset(IntegratorWorkspace* ws) {
@@ -104,13 +108,16 @@ void integrator_config_set_preserve_casimirs(IntegratorConfig* cfg, bool enable)
 }
 
 /* ========================================================================
- * INITIALIZATION
+ * INITIALIZATION (DOOM ETHOS)
  * ======================================================================== */
 
 void integrator_init(void) {
+    // DOOM ETHOS: Initialize slab allocator for zero-malloc workspaces
+    workspace_slab_init();
+
     // TODO: Initialize global LUT tables
     // - Load exp_map LUT (8192 entries, 32 KB)
     // - Load Clebsch LUT (256-512 entries, 4-8 KB)
     //
-    // For now, this is a no-op. LUTs will be generated in Phase 1.3.
+    // For now, Clebsch LUT is initialized via slab allocator.
 }

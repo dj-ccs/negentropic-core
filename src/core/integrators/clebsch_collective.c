@@ -9,12 +9,17 @@
 //   - Internal precision: FP64 (downcast to float on final projection)
 //   - Fallback: Single explicit Euler + Casimir correction
 //
+// DOOM ETHOS v2.2:
+//   - Workspace allocation via slab (no malloc in hot paths)
+//   - Shared singleton LUT across all workspaces
+//
 // Reference: docs/integrators.md section 3.1
 // Author: negentropic-core team
 // Version: 2.2.0
 
 #include "clebsch.h"
 #include "integrators.h"
+#include "workspace_slab.h"
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
@@ -33,24 +38,34 @@ struct ClebschWorkspace {
 };
 
 ClebschWorkspace* clebsch_workspace_create(const ClebschLUT* lut) {
-    if (!lut || !lut->initialized) return NULL;
+    // DOOM ETHOS v2.2: Use slab allocator instead of calloc
+    // Note: The slab allocator automatically attaches the shared LUT,
+    // so the 'lut' parameter is now ignored (kept for API compatibility).
+    (void)lut;  // Suppress unused parameter warning
 
-    ClebschWorkspace* ws = (ClebschWorkspace*)calloc(1, sizeof(ClebschWorkspace));
-    if (!ws) return NULL;
+    ClebschWorkspace* ws = workspace_slab_alloc_clebsch();
+    if (!ws) return NULL;  // Pool exhausted
 
-    ws->lut = lut;
     ws->casimir_initial = 0.0;
     ws->casimir_tolerance = 1e-6;  // FP64 precision target
     ws->step_count = 0;
     ws->fallback_count = 0;
 
+    // ws->lut is already set by slab allocator
+
     return ws;
 }
 
 void clebsch_workspace_destroy(ClebschWorkspace* ws) {
-    if (ws) {
-        free(ws);
+    if (!ws) return;
+
+    // Validate this is from our slab (catch double-free bugs)
+    if (!workspace_slab_validate_clebsch(ws)) {
+        return;  // Not from slab, don't free
     }
+
+    // DOOM ETHOS: Return to slab pool instead of free
+    workspace_slab_free_clebsch(ws);
 }
 
 /* ========================================================================

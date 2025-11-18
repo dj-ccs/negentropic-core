@@ -606,10 +606,12 @@ Layers use `COORDINATE_SYSTEM.LNGLAT` (geographic coordinates), and the Viewport
   - Added `filterViewState()` method to MatrixView for complete View API
   - Added `makeContainer()` stub method
   - Enhanced `makeViewport()` to accept options parameter
+  - Converted MatrixView to factory function pattern for proper View extension
+  - Added `this.props` initialization with `clear` and `clearDepth` properties
 
 **Additional Fixes (API Compliance):**
 
-The MatrixView class required multiple API compliance fixes to satisfy deck.gl's View interface:
+The MatrixView class required multiple sequential API compliance fixes to satisfy deck.gl's View interface:
 
 1. **getViewStateId() Fix (commit 3521920):**
    - Error: `TypeError: view.getViewStateId is not a function`
@@ -634,6 +636,32 @@ The MatrixView class required multiple API compliance fixes to satisfy deck.gl's
    - Added `makeContainer(opts)` stub (returns empty object for worker environment)
    - Enhanced `makeViewport(opts)` to accept width/height from options
 
+4. **View Extension and Props Initialization (commit dfb3c5e):**
+   - Error: `TypeError: Cannot destructure property 'clear' of 'view.props' as it is undefined`
+   - Root Cause: MatrixView was duck-typing as View but not properly extending it
+   - Solution: Implemented factory function pattern for dynamic class creation
+   ```typescript
+   function createMatrixViewClass() {
+     return class MatrixView extends View {
+       constructor(props: any = {}) {
+         super(props);
+         this.props = {
+           clear: true,
+           clearDepth: true,
+           ...props
+         };
+         // ... matrix initialization
+       }
+       // ... methods
+     };
+   }
+   // Called in loadDeckModules() after View is loaded
+   MatrixViewClass = createMatrixViewClass();
+   ```
+   - This allows MatrixView to properly extend View (which is loaded dynamically)
+   - The `super()` call initializes the View base class
+   - The `this.props` object satisfies DrawLayersPass requirements
+
 These additions complete the MatrixView's implementation of the deck.gl View interface, allowing the ViewManager to properly initialize and manage the custom view throughout the rendering lifecycle.
 
 **Verification:**
@@ -642,9 +670,11 @@ These additions complete the MatrixView's implementation of the deck.gl View int
 - No "matrix not invertible" errors in console
 - No "view.getViewStateId is not a function" errors in console
 - No "view.filterViewState is not a function" errors in console
+- No "Cannot destructure property 'clear' of 'view.props'" errors in console
 - deck.gl ViewManager successfully initializes and manages view state
+- DrawLayersPass successfully processes MatrixView
 
-**Status:** ✅ Implemented (commits b83fbf6, 3521920, db2c203; Nov 18, 2025) - Awaiting browser testing
+**Status:** ✅ Implemented (commits b83fbf6, 3521920, db2c203, dfb3c5e; Nov 18, 2025) - Awaiting browser testing
 
 ---
 

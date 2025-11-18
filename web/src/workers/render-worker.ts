@@ -316,6 +316,7 @@ let Deck: any;
 let GridLayer: any;
 let ScatterplotLayer: any;
 let View: any; // Base View class for custom MatrixView
+let Viewport: any; // Viewport class for proper coordinate transformation
 let _GlobeView: any; // Note: GlobeView is exported as _GlobeView (experimental API) - DEPRECATED by ORACLE-004
 let COORDINATE_SYSTEM: any;
 let deckModulesLoaded = false;
@@ -394,13 +395,18 @@ class MatrixView {
   /**
    * Override getViewport to use raw matrices
    * This method is called by deck.gl to compute the viewport for rendering
+   *
+   * CRITICAL FIX: Return a proper Viewport instance, not a plain object.
+   * deck.gl layers with COORDINATE_SYSTEM.LNGLAT need a proper Viewport
+   * with methods like project(), unproject(), and projectPosition() for
+   * geographic coordinate transformation.
    */
   getViewport(options: { width: number; height: number }) {
     const { width, height } = options;
 
-    // Create a basic viewport object with our raw matrices
-    // deck.gl's Viewport class will use these matrices directly
-    return {
+    // Create a proper Viewport instance with our raw matrices
+    // This enables deck.gl to properly transform LNGLAT coordinates
+    return new Viewport({
       id: this.id,
       x: 0,
       y: 0,
@@ -411,7 +417,7 @@ class MatrixView {
       // Near/far clipping planes to match Cesium's frustum
       near: 0.1,
       far: 100000000.0,
-    };
+    });
   }
 
   /**
@@ -436,6 +442,7 @@ async function loadDeckModules() {
 
     Deck = deckCore.Deck;
     View = deckCore.View; // Base View class for custom MatrixView
+    Viewport = deckCore.Viewport; // Viewport class for proper coordinate transformation
     _GlobeView = deckCore._GlobeView; // DEPRECATED by ORACLE-004
     COORDINATE_SYSTEM = deckCore.COORDINATE_SYSTEM;
     GridLayer = deckAggregationLayers.GridLayer;

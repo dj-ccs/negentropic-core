@@ -385,20 +385,21 @@ function createMatrixViewClass() {
   return class MatrixView extends View {
     viewMatrix: Float32Array;
     projectionMatrix: Float32Array;
-    props: any;
 
     constructor(props: any = {}) {
-      super(props);
-
-      // CRITICAL FIX: Initialize this.props to satisfy DrawLayersPass
-      // The DrawLayersPass destructures view.props.clear and view.props.clearDepth
-      this.props = {
+      // CRITICAL: Merge props BEFORE calling super() to avoid non-extensible object error
+      // deck.gl's View base class freezes/seals the object after super() is called
+      const mergedProps = {
+        id: 'matrix-view',
         clear: true,
         clearDepth: true,
         ...props
       };
 
+      super(mergedProps);
+
       // Initialize matrices to identity to avoid "not invertible" error on first frame
+      // These are instance properties, not on the frozen props object
       this.viewMatrix = new Float32Array(16);
       this.viewMatrix[0] = this.viewMatrix[5] = this.viewMatrix[10] = this.viewMatrix[15] = 1;
 

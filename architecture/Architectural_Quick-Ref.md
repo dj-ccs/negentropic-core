@@ -603,26 +603,48 @@ Layers use `COORDINATE_SYSTEM.LNGLAT` (geographic coordinates), and the Viewport
   - Added `Viewport` import from `@deck.gl/core`
   - Modified `MatrixView.getViewport()` to return `new Viewport(...)`
   - Added `getViewStateId()` method to MatrixView for API compliance
+  - Added `filterViewState()` method to MatrixView for complete View API
+  - Added `makeContainer()` stub method
+  - Enhanced `makeViewport()` to accept options parameter
 
-**Additional Fix (API Compliance):**
+**Additional Fixes (API Compliance):**
 
-After implementing the Viewport instance fix, a `TypeError: view.getViewStateId is not a function` error was discovered. The deck.gl `ViewManager` requires all View instances to implement `getViewStateId()`, which returns a unique identifier for the view state.
+The MatrixView class required multiple API compliance fixes to satisfy deck.gl's View interface:
 
-**Solution:** Added `getViewStateId()` method to MatrixView stub methods:
-```typescript
-getViewStateId() { return this.id; }
-```
+1. **getViewStateId() Fix (commit 3521920):**
+   - Error: `TypeError: view.getViewStateId is not a function`
+   - Solution: Added method returning view's unique identifier
+   ```typescript
+   getViewStateId() { return this.id; }
+   ```
 
-This simple addition satisfies the deck.gl ViewManager's API contract, allowing the rendering pipeline to proceed past initialization.
+2. **filterViewState() Fix (commit db2c203):**
+   - Error: `TypeError: view.filterViewState is not a function`
+   - Solution: Added method to extract view-specific state from global state
+   ```typescript
+   filterViewState(viewState: any) {
+     if (viewState && typeof viewState === 'object' && this.id in viewState) {
+       return viewState[this.id];
+     }
+     return viewState;
+   }
+   ```
+
+3. **Complete View API (commit db2c203):**
+   - Added `makeContainer(opts)` stub (returns empty object for worker environment)
+   - Enhanced `makeViewport(opts)` to accept width/height from options
+
+These additions complete the MatrixView's implementation of the deck.gl View interface, allowing the ViewManager to properly initialize and manage the custom view throughout the rendering lifecycle.
 
 **Verification:**
 - Red dot test layer at Kansas, USA `[-95, 40]` with 50km radius should be visible
 - Layer should correctly move and scale with globe rotation/zoom
 - No "matrix not invertible" errors in console
 - No "view.getViewStateId is not a function" errors in console
-- deck.gl ViewManager successfully initializes
+- No "view.filterViewState is not a function" errors in console
+- deck.gl ViewManager successfully initializes and manages view state
 
-**Status:** ✅ Implemented (commits b83fbf6, 3521920; Nov 18, 2025) - Awaiting browser testing
+**Status:** ✅ Implemented (commits b83fbf6, 3521920, db2c203; Nov 18, 2025) - Awaiting browser testing
 
 ---
 

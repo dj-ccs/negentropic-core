@@ -1,6 +1,37 @@
 /**
  * Render Worker (Thread 3)
  * Runs deck.gl on OffscreenCanvas, reads SAB at 60 FPS
+ *
+ * ============================================================================
+ * ORACLE-005 ARCHITECTURAL NOTICE
+ * ============================================================================
+ *
+ * **STATUS:** PARTIALLY DEPRECATED as of 2025-11-18
+ *
+ * **REASON:** The deck.gl custom MatrixView architecture proved unstable for
+ * full ECEF globe rendering due to:
+ * - Vertex buffer errors at high instance counts
+ * - Flickering and z-fighting at extreme zoom levels
+ * - Performance collapse (0.4 FPS) from GL instabilities
+ * - Projection singularities at polar regions
+ *
+ * **MIGRATION:** The Impact Map (difference layer) has been migrated to
+ * Cesium Primitives in the main thread (main.ts). This provides:
+ * - Native ECEF support without projection issues
+ * - Stable 60 FPS performance
+ * - Perfect depth-testing with terrain
+ * - No vertex buffer management issues
+ *
+ * **CURRENT STATUS:**
+ * - deck.gl moisture/SOM/vegetation layers: Still active (for now)
+ * - deck.gl difference layer: DISABLED (moved to Cesium Primitives)
+ * - MatrixView/camera sync: Still active (for existing layers)
+ *
+ * **FUTURE:** This entire worker may be replaced with Cesium-only rendering
+ * or repurposed for other visualization tasks. See docs/v2.2_ImpactMap_CesiumPivot.md
+ * for full details on the architectural pivot.
+ *
+ * ============================================================================
  */
 
 // ============================================================================

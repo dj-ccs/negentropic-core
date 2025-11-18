@@ -843,6 +843,7 @@ function updateLayers(fieldData: Float32Array) {
       getPosition: (d: any) => d.position,
       getRadius: (d: any) => d.radius,
       radiusUnits: 'meters',  // CRITICAL: Meters, not pixels
+      radiusMaxPixels: 200,   // FIX B: Prevent vertex buffer overload at close zoom
       getFillColor: (d: any) => d.color,
       getLineColor: [255, 255, 0],  // Yellow outline
       lineWidthMinPixels: 2,
@@ -965,16 +966,23 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
           // Initialize deck.gl
           initializeDeck(offscreenCanvas);
 
-          // CRITICAL FIX: Add test layer immediately after init to fix initial invisibility
-          // This ensures the layer is visible BEFORE the simulation starts.
-          // The test layer (red dot at Kansas) is added by updateLayers() regardless of fieldData.
-          // Pass empty Float32Array since we don't have simulation data yet.
-          updateLayers(new Float32Array(0));
-          deck.redraw();
+          // FIX A: Camera Matrix Timing Issue
+          // Delay initial layer draw by 100ms to ensure Cesium camera has sent a valid matrix.
+          // The "Pixel project matrix not invertible" error occurs when deck.redraw() is called
+          // before the camera-sync messages provide a stable viewState.
+          setTimeout(() => {
+            // CRITICAL FIX: Add test layer immediately after init to fix initial invisibility
+            // This ensures the layer is visible BEFORE the simulation starts.
+            // The test layer (red dot at Kansas) is added by updateLayers() regardless of fieldData.
+            // Pass empty Float32Array since we don't have simulation data yet.
+            updateLayers(new Float32Array(0));
+            deck.redraw();
 
-          console.log('[INIT] Test layer added and initial frame rendered');
+            console.log('[INIT] Test layer added and initial frame rendered (delayed 100ms)');
 
-          postMessage({ type: 'ready' });
+            // Signal ready AFTER the initial draw completes
+            postMessage({ type: 'ready' });
+          }, 100);
         }
         break;
 

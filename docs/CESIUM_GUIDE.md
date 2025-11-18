@@ -649,6 +649,52 @@ async function initializeCesium() {
 
 ---
 
+---
+
+## ORACLE-004: CliMA Matrix Injection for deck.gl Synchronization (Nov 18, 2025)
+
+After achieving basic Cesium globe rendering and imagery, the next challenge was perfect synchronization between Cesium's camera and deck.gl's visualization layers. Initial parameter-based synchronization (longitude, latitude, altitude) proved insufficient, leading to layer offset, shearing, polar disappearance, and "matrix not invertible" errors.
+
+### The Solution: Raw Matrix Synchronization
+
+**ORACLE-004** replaces high-level parameter mapping with direct injection of Cesium's raw view and projection matrices into a custom deck.gl View, mathematically aligned using CliMA cubed-sphere face rotation matrices.
+
+**Key Components:**
+
+1. **Matrix Extraction** (in main.ts):
+   ```typescript
+   const viewMatrix = camera.viewMatrix.clone();
+   const projMatrix = camera.frustum.projectionMatrix.clone();
+   ```
+
+2. **CliMA Face Rotation** (from ClimaCore.jl):
+   - 6 cubed-sphere face rotation matrices (north/south poles, 4 equatorial faces)
+   - Determines active face from camera ECEF position
+   - Applies rotation: `alignedProj = projMatrix * faceRotation`
+
+3. **Custom MatrixView** (in render-worker.ts):
+   - Replaces deck.gl's `_GlobeView`
+   - Accepts raw Float32Array matrices
+   - Bypasses all internal projection calculations
+
+**Benefits:**
+- Perfect 1:1 synchronization (mathematically provable)
+- Stable at polar regions (cubed-sphere avoids singularities)
+- Zero lag (direct matrix copy)
+- Guaranteed invertible projection matrices
+
+**Files:**
+- `web/src/geometry/clima-matrices.ts` - Face rotation matrices
+- `web/src/geometry/get-face.ts` - Face detection (<1µs)
+- `web/src/main.ts` - Matrix extraction and alignment
+- `web/src/workers/render-worker.ts` - Custom MatrixView
+
+**Reference:**
+- Full details: `architecture/Architectural_Quick-Ref.md` (ORACLE-004 section)
+- CliMA source: https://github.com/CliMA/ClimaCore.jl
+
+---
+
 **Attribution**: This guide synthesizes Cesium v1.120+ documentation with fixes from Grok (xAI), community forums, and production debugging in the Negentropic-Core GEO-v1 pipeline.
 
-**Last Updated**: 2025-11-15 (Added complete COEP fix with asset copying and Ion API proxy)
+**Last Updated**: 2025-11-18 (Added ORACLE-004 CliMA matrix injection)

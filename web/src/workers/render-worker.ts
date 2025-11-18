@@ -463,6 +463,11 @@ function createMatrixViewClass() {
 
       // Create a proper Viewport instance with our raw matrices
       // This enables deck.gl to properly transform LNGLAT coordinates
+      // CRITICAL: Do NOT specify near/far - they are already encoded in Cesium's projectionMatrix
+      // Hardcoded near/far values conflict with the dynamic frustum and cause:
+      // - Flickering during rotation
+      // - Culling at extreme zoom levels
+      // - Disappearance when viewing southern hemisphere or extreme angles
       return new Viewport({
         id: this.id,
         x: 0,
@@ -471,9 +476,6 @@ function createMatrixViewClass() {
         height,
         viewMatrix: data ? data.viewMatrix : new Float32Array(16),
         projectionMatrix: data ? data.projectionMatrix : new Float32Array(16),
-        // Near/far clipping planes to match Cesium's frustum
-        near: 0.1,
-        far: 100000000.0,
       });
     }
 

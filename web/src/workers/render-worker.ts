@@ -330,6 +330,9 @@ let deck: any = null; // Deck instance
 let offscreenCanvas: OffscreenCanvas | null = null;
 let sab: SharedArrayBuffer | null = null;
 let fieldOffsets: FieldOffsets | null = null;
+
+// ORACLE-004: ECEF test position (provided by main thread)
+let TEST_ECEF_POSITION: number[] | null = null;
 let isRunning: boolean = false;
 let frameCount: number = 0;
 let lastFPSUpdate: number = Date.now();
@@ -923,38 +926,43 @@ function updateLayers(fieldData: Float32Array) {
   }
 
   // ============================================================================
-  // TEST LAYER: Geographic Coordinate Verification
+  // ORACLE-004: Corrected Test Layer (ECEF Cartesian)
   // ============================================================================
-  // Red circle at Kansas, USA [-95, 40] with 50km radius
+  // Red circle at Kansas, USA (converted to ECEF) with 50km radius
   // This layer should MOVE and SCALE with the globe
-  // If it stays fixed on screen, geographic coordinates are broken
-  layers.push(
-    new ScatterplotLayer({
-      id: 'test-geo-layer',
-      data: [
-        {
-          position: [-95, 40],  // Kansas, USA (geographic coordinates)
-          radius: 50000,         // 50km in meters
-          color: [255, 0, 0],   // Red fill
-        },
-      ],
-      coordinateSystem: COORDINATE_SYSTEM.LNGLAT,  // CRITICAL: Geographic coordinates
-      getPosition: (d: any) => d.position,
-      getRadius: (d: any) => d.radius,
-      radiusUnits: 'meters',  // CRITICAL: Meters, not pixels (trusts altitude sync for all scaling)
-      getFillColor: (d: any) => d.color,
-      getLineColor: [255, 255, 0],  // Yellow outline
-      // REMOVED PIXEL CONSTRAINTS: These conflicted with radiusUnits: 'meters'
-      // Previously had: radiusMaxPixels: 200, lineWidthMinPixels: 2
-      // Removal allows pure geographic scaling based on altitude sync
-      opacity: 0.8,
-    })
-  );
+  // Uses CARTESIAN coordinate system to match MatrixView's raw matrix injection
+  if (TEST_ECEF_POSITION) {
+    const testData = [
+      {
+        position: TEST_ECEF_POSITION,  // [x, y, z] ECEF meters
+        radius: 50000,                  // 50km in meters
+        color: [255, 0, 0],            // Red fill
+      },
+    ];
 
-  // Debug log for test layer (first frame only)
-  if (frameCount === 0) {
-    console.log('[TEST] Red scatter layer added at [-95, 40], radius: 50km (meters)');
-    console.log('[TEST] If this circle does NOT move/scale with globe, projection is broken');
+    layers.push(
+      new ScatterplotLayer({
+        id: 'test-ecef-layer',
+        data: testData,
+        coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,  // CRITICAL: ECEF Cartesian coordinates
+        getPosition: (d: any) => d.position,
+        getRadius: (d: any) => d.radius,
+        radiusUnits: 'meters',  // CRITICAL: Meters for ECEF
+        getFillColor: (d: any) => d.color,
+        getLineColor: [255, 255, 0],  // Yellow outline
+        opacity: 0.8,
+      })
+    );
+
+    // Debug log for test layer (first frame only)
+    if (frameCount === 0) {
+      console.log('[TEST] ORACLE-004: Red scatter layer added in ECEF coordinates');
+      console.log('[TEST] Position:', TEST_ECEF_POSITION, '(meters)');
+      console.log('[TEST] Coordinate system: CARTESIAN (matches MatrixView)');
+      console.log('[TEST] If this circle does NOT move/scale with globe, ECEF conversion failed');
+    }
+  } else if (frameCount === 0) {
+    console.warn('[TEST] ORACLE-004: TEST_ECEF_POSITION not available, skipping test layer');
   }
 
   deck.setProps({ layers });
@@ -1057,6 +1065,12 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
           sab = payload.sab;
           offscreenCanvas = payload.offscreenCanvas;
           fieldOffsets = payload.fieldOffsets || null;
+
+          // ORACLE-004: Receive ECEF test position from main thread
+          if (payload.testEcefPosition) {
+            TEST_ECEF_POSITION = payload.testEcefPosition; // [x, y, z] in meters
+            console.log('[Worker] ORACLE-004 TEST_ECEF_POSITION:', TEST_ECEF_POSITION);
+          }
 
           console.log('Render Worker received SAB and OffscreenCanvas');
 

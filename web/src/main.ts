@@ -56,6 +56,15 @@ import { getClimaCoreFace } from './geometry/get-face';
 import { mat4 } from 'gl-matrix'; // For matrix multiplication
 
 // ============================================================================
+// ORACLE-004: ECEF Test Point (Hardcoded for Verification)
+// ============================================================================
+// Geographic test coordinate: Kansas, USA
+const TEST_GEOG = { lon: -95.0, lat: 40.0 };
+
+// This will be computed after Cesium is initialized
+let TEST_ECEF_POSITION: number[] | null = null;
+
+// ============================================================================
 // Application State
 // ============================================================================
 
@@ -283,6 +292,14 @@ class GeoV1Application {
 
       // Wait a frame to ensure scene is ready
       await new Promise(resolve => setTimeout(resolve, 100));
+
+      // ============================================================================
+      // ORACLE-004: Compute ECEF Test Position (after Cesium initialization)
+      // ============================================================================
+      // Convert geographic test coordinate to Cesium ECEF Cartesian (meters)
+      const testCart = Cartesian3.fromDegrees(TEST_GEOG.lon, TEST_GEOG.lat);
+      TEST_ECEF_POSITION = [testCart.x, testCart.y, testCart.z];
+      console.log(`[ORACLE-004] Test ECEF position computed: [${testCart.x.toFixed(2)}, ${testCart.y.toFixed(2)}, ${testCart.z.toFixed(2)}] meters`);
 
       // Log successful initialization
       console.log('✓ Cesium globe initialized successfully');
@@ -530,6 +547,7 @@ class GeoV1Application {
                   sab: this.sab,
                   offscreenCanvas: offscreen,
                   fieldOffsets: this.getFieldOffsets(),
+                  testEcefPosition: TEST_ECEF_POSITION, // ORACLE-004: Send ECEF test position
                 },
               }, [offscreen]);
 

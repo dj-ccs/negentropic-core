@@ -35,7 +35,9 @@ Build the 3-thread application skeleton.
 1. **Duplicate camera-sync handler** (CRITICAL BUG): render-worker.ts had TWO `case 'camera-sync':` blocks. The second one (with critical `deck.redraw()`) was unreachable code!
 2. **Wrong scale factor**: Code used 0.65, but testing proved 0.85 is optimal
 3. **Altitude mismatch**: `currentViewState` had altitude: 2.5, but `initialViewState` had 1.5
-4. **Layer visibility timing** (FINAL BUG): `updateLayers()` only called inside `renderLoop()`, so layer was invisible until simulation started
+4. **Layer visibility timing**: `updateLayers()` only called inside `renderLoop()`, so layer was invisible until simulation started
+5. **Camera matrix timing**: `deck.redraw()` called before camera-sync sent valid matrix (caused "matrix not invertible" errors)
+6. **Vertex buffer overload**: Test layer scaled too large at close zoom (caused WebGL errors and layer disappearance)
 
 **Solution:** Implemented complete camera synchronization system with all proven fixes:
 - `startCameraSync()` in main.ts runs at 60 FPS via requestAnimationFrame
@@ -45,7 +47,9 @@ Build the 3-thread application skeleton.
 - **Critical:** Redraw happens even when simulation is paused (isRunning=false)
 - Fixed duplicate case statement bug (removed first handler, kept one with redraw)
 - Aligned initial altitudes for consistency (both 1.5)
-- **Final Fix:** Call `updateLayers()` immediately after `initializeDeck()` to make layer visible on init
+- **Visibility Fix:** Call `updateLayers()` immediately after `initializeDeck()` to make layer visible on init
+- **Rendering Fix A:** Add 100ms `setTimeout` delay before initial draw to wait for stable camera matrix
+- **Rendering Fix B:** Add `radiusMaxPixels: 200` to test layer to prevent WebGL vertex buffer overload at close zoom
 
 **Result:**
 - ✅ Layer appears immediately upon initialization
@@ -54,6 +58,9 @@ Build the 3-thread application skeleton.
 - ✅ FPS reporting works correctly
 - ✅ Layer remains visible and in sync during pause
 - ✅ No more unreachable code bugs
+- ✅ No more "Pixel project matrix not invertible" errors (camera timing fixed)
+- ✅ No more WebGL vertex buffer overload errors (radiusMaxPixels constraint added)
+- ✅ Layer stable at all zoom levels (whole-globe to city-level)
 - ✅ All proven fixes consolidated into single working branch
 
 **Documentation:**

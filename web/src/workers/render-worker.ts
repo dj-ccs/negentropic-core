@@ -381,11 +381,18 @@ class MatrixView {
   viewMatrix: Float32Array;
   projectionMatrix: Float32Array;
   id: string;
+  props: any; // Required by deck.gl internal rendering code
 
-  constructor(props: any) {
-    // Note: We can't actually extend View here because it's not loaded yet
-    // Instead, we'll create an object that duck-types as a View
-    this.id = props?.id || 'matrix-view';
+  constructor(props: any = {}) {
+    // Store props with defaults for deck.gl API compliance
+    this.props = {
+      id: props.id || 'matrix-view',
+      controller: props.controller !== undefined ? props.controller : false,
+      clear: props.clear !== undefined ? props.clear : true, // Required for DrawLayersPass
+      ...props
+    };
+
+    this.id = this.props.id;
 
     // Initialize matrices to identity to avoid "not invertible" error on first frame
     this.viewMatrix = new Float32Array(16);

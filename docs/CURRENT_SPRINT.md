@@ -122,6 +122,26 @@ Build the 3-thread application skeleton.
 
 **Status:** ✅ Complete (2025-11-18) - Awaiting browser testing
 
+#### ORACLE-004 Follow-Up: MatrixView Props Fix (2025-11-18):
+**Problem:** After ECEF coordinate alignment, a new deck.gl internal error appeared: `Cannot destructure property 'clear' of 'view.props' as it is undefined`.
+
+**Root Cause:** The MatrixView class lacked a `props` property that deck.gl's internal `DrawLayersPass` expects. The error only surfaced after ECEF fixes because layers could now reach the rendering pipeline.
+
+**Solution:** Added a `props` property to MatrixView with defaults:
+```typescript
+this.props = {
+  id: props.id || 'matrix-view',
+  controller: false,  // Main thread handles camera via Cesium
+  clear: true,        // Required for DrawLayersPass
+  ...props
+};
+```
+
+**Files Modified:**
+- `web/src/workers/render-worker.ts` - Added props property to MatrixView constructor
+
+**Status:** ✅ Complete (2025-11-18) - Awaiting browser testing
+
 #### Architecture:
 ```
 Main Thread (main.ts)

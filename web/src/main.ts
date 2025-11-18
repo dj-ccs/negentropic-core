@@ -50,6 +50,11 @@ if (CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== 'your_token_here') {
 import CoreWorkerURL from './workers/core-worker?worker&url';
 import RenderWorkerURL from './workers/render-worker?worker&url';
 
+// ADD NEW IMPORTS FOR CLIMA MATRIX SYNC (ORACLE-004)
+import { CLIMA_FACE_MATRICES } from './geometry/clima-matrices';
+import { getClimaCoreFace } from './geometry/get-face';
+import { mat4 } from 'gl-matrix'; // For matrix multiplication
+
 // ============================================================================
 // Application State
 // ============================================================================
@@ -595,9 +600,13 @@ class GeoV1Application {
   }
 
   /**
-   * Camera Synchronization Loop
+   * Camera Synchronization Loop (ORACLE-004: CliMA Matrix Injection)
    * Continuously sync Cesium camera state to deck.gl render worker
    * This ensures deck.gl layers move with the globe
+   *
+   * ARCHITECTURAL CHANGE: Replaces parameter-based synchronization with direct
+   * matrix injection. Extracts raw view/projection matrices from Cesium and applies
+   * CliMA cubed-sphere face rotation for mathematically perfect alignment.
    */
   private startCameraSync() {
     const syncCamera = () => {
@@ -605,27 +614,28 @@ class GeoV1Application {
 
       // Read Cesium camera state
       const camera = this.viewer.camera;
-      const position = camera.positionCartographic;
 
-      // Convert to degrees
-      const longitude = position.longitude * (180 / Math.PI);
-      const latitude = position.latitude * (180 / Math.PI);
-      const height = position.height; // Altitude in meters
+      // 1. Get raw matrices
+      const viewMatrix = camera.viewMatrix.clone(); // Cesium.Matrix4 -> Float32Array
+      const projMatrix = camera.frustum.projectionMatrix.clone(); // Cesium.Matrix4
 
-      // Convert Cesium altitude (meters) to deck.gl GlobeView altitude
-      // deck.gl GlobeView altitude: 1 unit = viewport height, default 1.5
-      // Formula: normalize altitude relative to Earth radius
-      const altitude = this.cesiumAltitudeToGlobeViewAltitude(height);
+      // 2. Determine CliMA Face and Rotation Matrix
+      const cameraCartographic = camera.positionCartographic.clone();
+      const faceId = getClimaCoreFace(cameraCartographic);
+      const faceRot = CLIMA_FACE_MATRICES[faceId];
 
-      // Send to render worker
-      // NOTE: GlobeView does NOT support pitch/bearing rotation
-      // Camera always points towards center of Earth with north up
+      // 3. Apply Face Rotation to Projection Matrix
+      // This is the CRITICAL STEP for global alignment (Grok's Fix)
+      const alignedProj = new Float32Array(16);
+      mat4.mul(alignedProj, projMatrix as any, faceRot as any); // Use gl-matrix mul
+
+      // Send raw matrices to render worker (as flat arrays)
       this.renderWorker.postMessage({
         type: 'camera-sync',
         payload: {
-          longitude,
-          latitude,
-          altitude,  // GlobeView uses altitude, not zoom
+          viewMatrix: Array.from(viewMatrix), // Send raw View Matrix
+          projectionMatrix: Array.from(alignedProj), // Send Face-Rotated Projection Matrix
+          faceId: faceId // For debug
         },
       });
 

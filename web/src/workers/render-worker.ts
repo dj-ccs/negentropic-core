@@ -315,9 +315,11 @@ import type {
 let Deck: any;
 let GridLayer: any;
 let ScatterplotLayer: any;
-let _GlobeView: any; // Note: GlobeView is exported as _GlobeView (experimental API)
+let View: any; // Base View class for custom MatrixView
+let _GlobeView: any; // Note: GlobeView is exported as _GlobeView (experimental API) - DEPRECATED by ORACLE-004
 let COORDINATE_SYSTEM: any;
 let deckModulesLoaded = false;
+let matrixView: any; // Global reference to custom MatrixView instance
 
 // ============================================================================
 // Worker State
@@ -361,6 +363,65 @@ let showDifferenceMap: boolean = false;
 let somBaseline: Float32Array | null = null;
 
 // ============================================================================
+// ORACLE-004: Custom MatrixView for Direct Matrix Injection
+// ============================================================================
+
+/**
+ * Custom MatrixView class that replaces _GlobeView
+ * Accepts raw view and projection matrices from Cesium and injects them directly
+ * into the deck.gl rendering pipeline, bypassing all internal projection calculations.
+ *
+ * This is the architectural solution to the projection mismatch problem.
+ */
+class MatrixView {
+  viewMatrix: Float32Array;
+  projectionMatrix: Float32Array;
+  id: string;
+
+  constructor(props: any) {
+    // Note: We can't actually extend View here because it's not loaded yet
+    // Instead, we'll create an object that duck-types as a View
+    this.id = props?.id || 'matrix-view';
+
+    // Initialize matrices to identity to avoid "not invertible" error on first frame
+    this.viewMatrix = new Float32Array(16);
+    this.viewMatrix[0] = this.viewMatrix[5] = this.viewMatrix[10] = this.viewMatrix[15] = 1;
+
+    this.projectionMatrix = new Float32Array(16);
+    this.projectionMatrix[0] = this.projectionMatrix[5] = this.projectionMatrix[10] = this.projectionMatrix[15] = 1;
+  }
+
+  /**
+   * Override getViewport to use raw matrices
+   * This method is called by deck.gl to compute the viewport for rendering
+   */
+  getViewport(options: { width: number; height: number }) {
+    const { width, height } = options;
+
+    // Create a basic viewport object with our raw matrices
+    // deck.gl's Viewport class will use these matrices directly
+    return {
+      id: this.id,
+      x: 0,
+      y: 0,
+      width,
+      height,
+      viewMatrix: this.viewMatrix,
+      projectionMatrix: this.projectionMatrix,
+      // Near/far clipping planes to match Cesium's frustum
+      near: 0.1,
+      far: 100000000.0,
+    };
+  }
+
+  /**
+   * Stub methods to satisfy deck.gl's View interface
+   */
+  equals() { return false; }
+  makeViewport() { return this.getViewport({ width: 800, height: 600 }); }
+}
+
+// ============================================================================
 // Deck.gl Module Loading
 // ============================================================================
 
@@ -374,7 +435,8 @@ async function loadDeckModules() {
     const deckLayers = await import('@deck.gl/layers');
 
     Deck = deckCore.Deck;
-    _GlobeView = deckCore._GlobeView;
+    View = deckCore.View; // Base View class for custom MatrixView
+    _GlobeView = deckCore._GlobeView; // DEPRECATED by ORACLE-004
     COORDINATE_SYSTEM = deckCore.COORDINATE_SYSTEM;
     GridLayer = deckAggregationLayers.GridLayer;
     ScatterplotLayer = deckLayers.ScatterplotLayer;
@@ -493,18 +555,20 @@ function initializeDeck(canvas: OffscreenCanvas) {
       gl.canvas = canvas;
     }
 
-    // Initialize deck.gl with OffscreenCanvas and GlobeView
+    // ORACLE-004: Initialize deck.gl with Custom MatrixView (replaces _GlobeView)
+    // Create global MatrixView instance for direct matrix injection
+    matrixView = new MatrixView({ id: 'matrix-view' });
+
     deck = new Deck({
       canvas: canvas as any,
       gl,
       width: canvas.width,
       height: canvas.height,
-      views: [new _GlobeView()],  // CRITICAL: Use GlobeView for geographic projection
+      views: [matrixView],  // CRITICAL ARCHITECTURAL CHANGE: Use MatrixView for raw matrix injection
       initialViewState: {
         longitude: 0,
         latitude: 0,
-        altitude: 1.5,  // GlobeView altitude (1 unit = viewport height)
-        // NOTE: GlobeView does NOT support zoom, pitch, bearing
+        altitude: 1.5,  // Fallback initial state (unused with MatrixView)
       },
       controller: false, // Disable controller in worker (main thread handles camera)
       layers: [],
@@ -1037,21 +1101,22 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
         break;
 
       case 'camera-sync':
-        // Update viewState from Cesium camera
-        // GlobeView uses longitude, latitude, altitude (not zoom/pitch/bearing)
-        if (payload) {
-          currentViewState = {
-            longitude: payload.longitude,
-            latitude: payload.latitude,
-            altitude: payload.altitude,  // Relative altitude (1 unit = viewport height)
-          };
+        // ORACLE-004: Direct Matrix Injection
+        // Bypasses GlobeView's internal calculation to solve offset/shearing/lag/polar issues
+        if (payload?.viewMatrix && payload?.projectionMatrix && deck && matrixView) {
+          // Copy raw matrices to the custom view instance
+          // Using Float32Array.set for optimal performance
+          matrixView.viewMatrix.set(payload.viewMatrix);
+          matrixView.projectionMatrix.set(payload.projectionMatrix);
 
-          // CRITICAL FIX: Force redraw on camera-sync message
-          // This ensures the layer moves/scales even when simulation is paused (isRunning=false)
-          if (deck) {
-            // Update viewState immediately and redraw
-            deck.setProps({ viewState: currentViewState });
-            deck.redraw();
+          // CRITICAL: Force deck.gl to recognize the matrix update
+          // We update the views array to trigger a re-render with the new matrices
+          deck.setProps({ views: [matrixView] });
+          deck.redraw(true); // Force immediate redraw
+
+          // Optional: Log face ID for debugging polar transitions
+          if (payload.faceId !== undefined && frameCount % 300 === 0) {
+            console.log(`[Camera] CliMA Face: ${payload.faceId} (0=+Z north, 1=-Z south, 2-5=equatorial)`);
           }
         }
         break;

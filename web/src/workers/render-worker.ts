@@ -842,11 +842,12 @@ function updateLayers(fieldData: Float32Array) {
       coordinateSystem: COORDINATE_SYSTEM.LNGLAT,  // CRITICAL: Geographic coordinates
       getPosition: (d: any) => d.position,
       getRadius: (d: any) => d.radius,
-      radiusUnits: 'meters',  // CRITICAL: Meters, not pixels
-      radiusMaxPixels: 200,   // FIX B: Prevent vertex buffer overload at close zoom
+      radiusUnits: 'meters',  // CRITICAL: Meters, not pixels (trusts altitude sync for all scaling)
       getFillColor: (d: any) => d.color,
       getLineColor: [255, 255, 0],  // Yellow outline
-      lineWidthMinPixels: 2,
+      // REMOVED PIXEL CONSTRAINTS: These conflicted with radiusUnits: 'meters'
+      // Previously had: radiusMaxPixels: 200, lineWidthMinPixels: 2
+      // Removal allows pure geographic scaling based on altitude sync
       opacity: 0.8,
     })
   );

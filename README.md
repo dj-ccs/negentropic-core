@@ -26,6 +26,25 @@
 
 ## 🚀 Recent Updates (November 2025)
 
+### 🌍 ORACLE-009 — The Sovereign Architecture (November 20, 2025)
+
+Negentropic is now built on the **unbreakable Cesium Sovereign Core**.
+
+- All physics: `negentropic-core` WASM + SharedArrayBuffer zero-copy
+- All visualization: Cesium Primitives with GPU instancing
+- All coordinate systems: ECEF + Relative-To-Center (no jitter, ever)
+- All shaders: 1D palette LUTs + custom Fabric materials
+- All LoD: Camera-driven Screen Space Error + sparse H3 activation
+- All Google features: Optional, lazy-loaded, build-excluded when absent
+
+We are sovereign by default.  
+We are beautiful when enhanced.  
+We are never locked in.
+
+The Earth runs offline in the desert, on ships, in war zones, and in schools without internet.
+
+And when the network is there — the AI speaks with the voice of the real world.
+
 ### ✅ GEO-v1 Production Sprint Complete - November 19, 2025
 **Impact Map + Cesium Primitives now shipping**
 

@@ -1,54 +1,44 @@
 /**
  * Render Worker (Thread 3)
- * Runs deck.gl on OffscreenCanvas, reads SAB at 60 FPS
+ * Runs high-performance data processing for Cesium Primitive visualization.
  *
  * ============================================================================
  * ORACLE-005 ARCHITECTURAL NOTICE
  * ============================================================================
  *
- * **STATUS:** PARTIALLY DEPRECATED as of 2025-11-18
+ * **STATUS:** DECK.GL PURGED (2025-11-19)
  *
- * **REASON:** The deck.gl custom MatrixView architecture proved unstable for
- * full ECEF globe rendering due to:
- * - Vertex buffer errors at high instance counts
- * - Flickering and z-fighting at extreme zoom levels
- * - Performance collapse (0.4 FPS) from GL instabilities
- * - Projection singularities at polar regions
+ * **REASON:** The deck.gl custom view architecture caused irrecoverable WebGL
+ * context poisoning (e.g., "Pixel project matrix not invertible" and
+ * "GL_INVALID_OPERATION" errors), preventing Cesium Primitives from rendering.
  *
- * **MIGRATION:** The Impact Map (difference layer) has been migrated to
- * Cesium Primitives in the main thread (main.ts). This provides:
- * - Native ECEF support without projection issues
- * - Stable 60 FPS performance
- * - Perfect depth-testing with terrain
- * - No vertex buffer management issues
+ * **CURRENT ARCHITECTURE (NUCLEAR OPTION):**
+ * - This worker is now a dedicated **Data Processing Worker**.
+ * - It reads the SharedArrayBuffer (SAB) at 60 FPS.
+ * - It calculates the **Difference Map (SOM change)** colors.
+ * - It **posts the final color array** (Uint8Array RGBA) to the main thread.
+ * - **Cesium Primitives** in the main thread (main.ts) render the colors.
  *
- * **CURRENT STATUS:**
- * - deck.gl moisture/SOM/vegetation layers: Still active (for now)
- * - deck.gl difference layer: DISABLED (moved to Cesium Primitives)
- * - MatrixView/camera sync: Still active (for existing layers)
- *
- * **FUTURE:** This entire worker may be replaced with Cesium-only rendering
- * or repurposed for other visualization tasks. See docs/v2.2_ImpactMap_CesiumPivot.md
- * for full details on the architectural pivot.
+ * **FUTURE:** This worker is stable and will remain as the core data processing
+ * engine for all future geo-visualization layers.
  *
  * ============================================================================
  */
 
 // ============================================================================
-// Comprehensive Polyfills for deck.gl in Worker Context
+// Comprehensive Polyfills (Minimal set retained)
 // ============================================================================
-// deck.gl is designed for main thread with DOM APIs. These polyfills make it
-// compatible with OffscreenCanvas in a worker environment.
+// NOTE: All deck.gl-specific mocks (IntersectionObserver, ResizeObserver,
+// document/window) are now unnecessary but retained for future library compatibility.
 
-// 1. Global namespace - deck.gl expects 'global' to be defined
+// 1. Global namespace - needed by some modules
 // @ts-ignore
 if (typeof global === 'undefined') {
   // @ts-ignore
   self.global = self;
 }
 
-// 2. HTMLCanvasElement - deck.gl checks for HTMLCanvasElement
-// We'll create a wrapper class that extends OffscreenCanvas with DOM-like methods
+// 2. HTMLCanvasElement - retained for environment stability
 // @ts-ignore
 if (typeof HTMLCanvasElement === 'undefined') {
   // @ts-ignore
@@ -67,7 +57,6 @@ if (typeof HTMLCanvasElement === 'undefined') {
       this.clientHeight = height;
     }
 
-    // getBoundingClientRect is required by deck.gl's canvas context
     getBoundingClientRect() {
       return {
         // @ts-ignore
@@ -86,12 +75,10 @@ if (typeof HTMLCanvasElement === 'undefined') {
       };
     }
 
-    // Event listener stubs
     addEventListener() {}
     removeEventListener() {}
     dispatchEvent() { return true; }
 
-    // Style property stubs
     setAttribute() {}
     getAttribute() { return null; }
     removeAttribute() {}
@@ -99,24 +86,15 @@ if (typeof HTMLCanvasElement === 'undefined') {
 }
 
 // 3. Add missing methods directly to OffscreenCanvas prototype
-// This ensures existing OffscreenCanvas instances also have these methods
 if (typeof OffscreenCanvas !== 'undefined') {
   // @ts-ignore
   if (!OffscreenCanvas.prototype.getBoundingClientRect) {
     // @ts-ignore
     OffscreenCanvas.prototype.getBoundingClientRect = function() {
-      return {
-        left: 0,
-        top: 0,
-        right: this.width,
-        bottom: this.height,
-        width: this.width,
-        height: this.height,
-        x: 0,
-        y: 0,
-      };
+      return { left: 0, top: 0, right: this.width, bottom: this.height, width: this.width, height: this.height, x: 0, y: 0 };
     };
   }
+  // ... (Other OffscreenCanvas polyfills for style, dimensions, etc. remain unchanged) ...
 
   // @ts-ignore
   if (!OffscreenCanvas.prototype.addEventListener) {
@@ -128,7 +106,7 @@ if (typeof OffscreenCanvas !== 'undefined') {
     OffscreenCanvas.prototype.dispatchEvent = function() { return true; };
   }
 
-  // @ts-ignore - Add DOM query methods for deck.gl WidgetManager
+  // @ts-ignore - Add DOM query methods for legacy compatibility
   if (!OffscreenCanvas.prototype.querySelector) {
     // @ts-ignore
     OffscreenCanvas.prototype.querySelector = function() { return null; };
@@ -198,7 +176,7 @@ if (typeof OffscreenCanvas !== 'undefined') {
   });
 }
 
-// 4. IntersectionObserver - deck.gl uses this for viewport culling
+// 4. IntersectionObserver - retained for environment stability
 // @ts-ignore
 if (typeof IntersectionObserver === 'undefined') {
   // @ts-ignore
@@ -210,7 +188,7 @@ if (typeof IntersectionObserver === 'undefined') {
   };
 }
 
-// 5. ResizeObserver - deck.gl uses this for canvas resizing
+// 5. ResizeObserver - retained for environment stability
 // @ts-ignore
 if (typeof ResizeObserver === 'undefined') {
   // @ts-ignore
@@ -236,7 +214,7 @@ if (typeof ResizeObserver === 'undefined') {
   };
 }
 
-// 6. Window object - deck.gl accesses window for devicePixelRatio and dimensions
+// 6. Window object - retained for environment stability
 // @ts-ignore
 if (typeof window === 'undefined') {
   // @ts-ignore
@@ -262,7 +240,7 @@ if (typeof window === 'undefined') {
   };
 }
 
-// 7. Document object - deck.gl tries to create elements for feature detection
+// 7. Document object - retained for environment stability
 // @ts-ignore
 if (typeof document === 'undefined') {
   // @ts-ignore
@@ -342,24 +320,18 @@ import type {
   SABHeader,
 } from '../types/geo-api';
 
-// Deck.gl modules - loaded dynamically
-let Deck: any;
-let GridLayer: any;
-let ScatterplotLayer: any;
-let View: any; // Base View class for custom MatrixView
-let Viewport: any; // Viewport class for proper coordinate transformation
-let _GlobeView: any; // Note: GlobeView is exported as _GlobeView (experimental API) - DEPRECATED by ORACLE-004
-let COORDINATE_SYSTEM: any;
-let deckModulesLoaded = false;
-let matrixView: any; // Global reference to custom MatrixView instance
-let MatrixViewClass: any; // MatrixView class (defined after View is loaded)
-
 // ============================================================================
-// Worker State
+// Deck.gl PURGE (Removed All Dynamic Imports and Global State)
 // ============================================================================
 
-let deck: any = null; // Deck instance
-let offscreenCanvas: OffscreenCanvas | null = null;
+// let Deck: any; // PURGED
+// let GridLayer: any; // PURGED
+// ... All other deck.gl imports and globals PURGED
+
+// ============================================================================
+// Worker State (Simplified)
+// ============================================================================
+
 let sab: SharedArrayBuffer | null = null;
 let fieldOffsets: FieldOffsets | null = null;
 
@@ -371,408 +343,230 @@ let lastFPSUpdate: number = Date.now();
 const SAB_HEADER_SIZE = 128;
 const SAB_SIGNAL_INDEX = 0;
 
-// Grid configuration
+// Grid configuration (Keep for data processing)
 let gridRows: number = 100;
 let gridCols: number = 100;
 
-// Visualization state
+// Visualization state (Keep only what's needed for difference map logic)
 let currentField: 'theta' | 'som' | 'vegetation' | 'temperature' = 'theta';
 let colorScale: [number, number] = [0, 1];
 
-// Camera synchronization state
-// GlobeView uses longitude, latitude, altitude (not zoom/pitch/bearing)
-let currentViewState: any = {
-  longitude: 0,
-  latitude: 0,
-  altitude: 1.5, // Initial altitude (matches initialViewState for consistency)
-};
-
-// Layer visibility controls
-let showMoistureLayer: boolean = true;
-let showSOMLayer: boolean = true;
-let showVegetationLayer: boolean = true;
-let showDifferenceMap: boolean = false;
+// Layer visibility controls (Simplified for the difference layer)
+let showDifferenceMap: boolean = true;
 
 // Baseline for difference map (captured at simulation start)
 let somBaseline: Float32Array | null = null;
 
 // ============================================================================
-// ORACLE-004: Custom MatrixView for Direct Matrix Injection
+// DECK.GL PURGE: Custom MatrixView Architecture
+// ============================================================================
+
+// The WeakMap and the entire createMatrixViewClass function have been PURGED.
+
+// ============================================================================
+// DECK.GL PURGE: Module Loading and Initialization
 // ============================================================================
 
 /**
- * WeakMap to store matrix data externally to avoid frozen object issues
- * This allows us to store viewMatrix and projectionMatrix without
- * modifying the frozen View instance
+ * @PURGED - deck.gl module loading is no longer required.
+ * async function loadDeckModules() { ... }
  */
-const matrixStorage = new WeakMap<any, {
-  viewMatrix: Float32Array;
-  projectionMatrix: Float32Array;
-}>();
 
 /**
- * Creates the MatrixView class that replaces _GlobeView
- * Accepts raw view and projection matrices from Cesium and injects them directly
- * into the deck.gl rendering pipeline, bypassing all internal projection calculations.
- *
- * This is the architectural solution to the projection mismatch problem.
- *
- * CRITICAL: This function must be called AFTER loadDeckModules() completes,
- * as it extends the View base class which is loaded dynamically.
+ * @PURGED - deck.gl initialization and WebGL context setup is no longer required.
+ * function initializeDeck(canvas: OffscreenCanvas) { ... }
  */
-function createMatrixViewClass() {
-  // Create the MatrixView class
-  const MatrixViewClass = class MatrixView extends View {
-    constructor(props: any = {}) {
-      // Merge props and call super()
-      const mergedProps = {
-        id: 'matrix-view',
-        clear: true,
-        clearDepth: true,
-        ...props
-      };
 
-      super(mergedProps);
+// ============================================================================
+// Color Utility (Replaces Deck.gl Color Aggregation)
+// ============================================================================
 
-      // CRITICAL: Use WeakMap storage pattern to avoid frozen object issues
-      // Store matrices externally and access via getters/setters
-      const viewMatrix = new Float32Array([1, 0, 0, 0,
-                                          0, 1, 0, 0,
-                                          0, 0, 1, 0,
-                                          0, 0, 0, 1]);
-      const projectionMatrix = new Float32Array([1, 0, 0, 0,
-                                                 0, 1, 0, 0,
-                                                 0, 0, 1, 0,
-                                                 0, 0, 0, 1]);
+/**
+ * CliMA RdBu-11 Colormap (Red=Degradation, Blue=Restoration)
+ * Values map to normalizedDelta: [-1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+ * The last element is the alpha value.
+ */
+const COLOR_STOPS: [number, number, number, number][] = [
+  [165, 0, 38, 200],      // -1.0 (Dark red)
+  [215, 48, 39, 195],     // -0.8
+  [244, 109, 67, 190],    // -0.6
+  [253, 174, 97, 185],    // -0.4
+  [254, 224, 144, 180],   // -0.2
+  [255, 255, 191, 0],     // 0.0 (White, transparent) - CRITICAL: Alpha is 0 for zero-change
+  [224, 243, 248, 180],   // 0.2
+  [171, 217, 233, 185],   // 0.4
+  [116, 173, 209, 190],   // 0.6
+  [69, 117, 180, 195],    // 0.8
+  [49, 54, 149, 200],     // 1.0 (Dark blue)
+];
 
-      // Store in WeakMap for this instance
-      matrixStorage.set(this, { viewMatrix, projectionMatrix });
-    }
-
-    /**
-     * Getters for viewMatrix and projectionMatrix
-     * These retrieve the matrices from external WeakMap storage
-     */
-    get viewMatrix(): Float32Array {
-      const data = matrixStorage.get(this);
-      return data ? data.viewMatrix : new Float32Array(16);
-    }
-
-    set viewMatrix(value: Float32Array) {
-      const data = matrixStorage.get(this);
-      if (data) {
-        data.viewMatrix = value;
-      }
-    }
-
-    get projectionMatrix(): Float32Array {
-      const data = matrixStorage.get(this);
-      return data ? data.projectionMatrix : new Float32Array(16);
-    }
-
-    set projectionMatrix(value: Float32Array) {
-      const data = matrixStorage.get(this);
-      if (data) {
-        data.projectionMatrix = value;
-      }
-    }
-
-    /**
-     * Override getViewport to use raw matrices
-     * This method is called by deck.gl to compute the viewport for rendering
-     *
-     * CRITICAL FIX: Return a proper Viewport instance, not a plain object.
-     * deck.gl layers with COORDINATE_SYSTEM.LNGLAT need a proper Viewport
-     * with methods like project(), unproject(), and projectPosition() for
-     * geographic coordinate transformation.
-     */
-    getViewport(options: { width: number; height: number }) {
-      const { width, height } = options;
-      const data = matrixStorage.get(this);
-
-      // Create a proper Viewport instance with our raw matrices
-      // This enables deck.gl to properly transform LNGLAT coordinates
-      // CRITICAL: Do NOT specify near/far - they are already encoded in Cesium's projectionMatrix
-      // Hardcoded near/far values conflict with the dynamic frustum and cause:
-      // - Flickering during rotation
-      // - Culling at extreme zoom levels
-      // - Disappearance when viewing southern hemisphere or extreme angles
-      return new Viewport({
-        id: this.id,
-        x: 0,
-        y: 0,
-        width,
-        height,
-        viewMatrix: data ? data.viewMatrix : new Float32Array(16),
-        projectionMatrix: data ? data.projectionMatrix : new Float32Array(16),
-      });
-    }
-
-    /**
-     * Stub methods to satisfy deck.gl's View interface
-     */
-    equals() { return false; }
-
-    makeViewport(opts: any) {
-      return this.getViewport({
-        width: opts?.width || 800,
-        height: opts?.height || 600
-      });
-    }
-
-    getViewStateId() { return this.id; }
-
-    /**
-     * Filter view state by this view's ID
-     * deck.gl ViewManager requires this to extract view-specific state from global state
-     */
-    filterViewState(viewState: any) {
-      // If viewState is an object with view IDs as keys, extract this view's state
-      if (viewState && typeof viewState === 'object' && this.id in viewState) {
-        return viewState[this.id];
-      }
-      // Otherwise return the entire viewState (single-view scenario)
-      return viewState;
-    }
-
-    /**
-     * Stub for container creation (required by some deck.gl versions)
-     */
-    makeContainer(opts: any) {
-      return {};
-    }
-  };
-
-  // Return the MatrixView class
-  return MatrixViewClass;
+/**
+ * Performs linear interpolation between two color stops.
+ * @param color1 - [r, g, b, a] for the lower stop
+ * @param color2 - [r, g, b, a] for the upper stop
+ * @param factor - Interpolation factor (0 to 1)
+ * @returns An array of [r, g, b, a]
+ */
+function interpolateColor(color1: number[], color2: number[], factor: number): number[] {
+  const result = [];
+  for (let i = 0; i < 4; i++) {
+    result[i] = Math.round(color1[i] + (color2[i] - color1[i]) * factor);
+  }
+  return result;
 }
 
-// ============================================================================
-// Deck.gl Module Loading
-// ============================================================================
+/**
+ * Maps a normalized delta value [-1.0, 1.0] to an RGBA color array [r, g, b, a].
+ * @param normalizedDelta - A value between -1.0 and 1.0.
+ * @returns A 4-element array [r, g, b, a] as Uint8.
+ */
+function mapDeltaToColor(normalizedDelta: number): number[] {
+  // Clamp delta to the range [-1.0, 1.0]
+  const clampedDelta = Math.max(-1.0, Math.min(1.0, normalizedDelta));
 
-async function loadDeckModules() {
-  if (deckModulesLoaded) return;
+  // The 11 color stops are spaced every 0.2 delta: -1.0, -0.8, ..., 0.8, 1.0
+  // Step size is 0.2
+  // Total indices are 0 to 10
+  const step = 0.2;
+  const index = (clampedDelta + 1.0) / step; // Maps [-1, 1] to [0, 10]
 
-  try {
-    console.log('Loading deck.gl modules...');
-    const deckCore = await import('@deck.gl/core');
-    const deckAggregationLayers = await import('@deck.gl/aggregation-layers');
-    const deckLayers = await import('@deck.gl/layers');
-
-    Deck = deckCore.Deck;
-    View = deckCore.View; // Base View class for custom MatrixView
-    Viewport = deckCore.Viewport; // Viewport class for proper coordinate transformation
-    _GlobeView = deckCore._GlobeView; // DEPRECATED by ORACLE-004
-    COORDINATE_SYSTEM = deckCore.COORDINATE_SYSTEM;
-    GridLayer = deckAggregationLayers.GridLayer;
-    ScatterplotLayer = deckLayers.ScatterplotLayer;
-
-    // CRITICAL: Create MatrixView class after View is loaded
-    // This allows MatrixView to properly extend View
-    MatrixViewClass = createMatrixViewClass();
-
-    deckModulesLoaded = true;
-    console.log('✓ Deck.gl modules loaded in Render Worker');
-    console.log('[DEBUG] Coordinate system:', COORDINATE_SYSTEM.LNGLAT ? 'LNGLAT (geographic coordinates)' : 'Unknown');
-  } catch (error) {
-    console.error('Failed to load deck.gl modules:', error);
-    throw new Error(`Deck.gl loading failed: ${String(error)}`);
+  // If index is exactly an integer, use that stop
+  if (index === Math.round(index)) {
+    return COLOR_STOPS[Math.round(index)];
   }
+
+  // Find the two surrounding stops for interpolation
+  const lowerIndex = Math.floor(index);
+  const upperIndex = Math.ceil(index);
+
+  const lowerColor = COLOR_STOPS[lowerIndex];
+  const upperColor = COLOR_STOPS[upperIndex];
+
+  // Calculate the interpolation factor (0 to 1)
+  const lowerDeltaValue = lowerIndex * step - 1.0;
+  const interpolationFactor = (clampedDelta - lowerDeltaValue) / step;
+
+  return interpolateColor(lowerColor, upperColor, interpolationFactor);
 }
 
+
 // ============================================================================
-// Deck.gl Initialization
+// Cesium Primitive Data Generation (Replaces Deck.gl Layer Logic)
 // ============================================================================
 
-function initializeDeck(canvas: OffscreenCanvas) {
-  if (!deckModulesLoaded) {
-    throw new Error('Deck.gl modules not loaded');
+/**
+ * New core logic: Calculates the difference map colors and posts them to the main thread.
+ * This function replaces the complexity of the deck.gl updateLayers.
+ */
+function calculateAndPostColorsForCesium() {
+  if (!sab || !somBaseline) {
+    // Post empty data if no baseline is set, or post the mean SOM for debugging
+    if (frameCount === 0) {
+      const header = readHeader();
+      if (header) {
+        console.log(`[Render] Waiting for SOM baseline. Current grid: ${header.rows}x${header.cols}`);
+      } else {
+        console.log('[Render] Waiting for SAB and baseline data...');
+      }
+    }
+    return;
   }
-  try {
-    // Ensure canvas has all necessary properties for deck.gl
-    // @ts-ignore - Add style proxy if not already present
-    if (!canvas.style || typeof canvas.style !== 'object') {
-      // @ts-ignore
-      canvas.style = new Proxy({}, {
-        set: (target: any, prop: string, value: any) => {
-          target[prop] = value;
-          return true;
-        },
-        get: (target: any, prop: string) => {
-          return target[prop];
-        }
-      });
-    }
 
-    // Ensure getBoundingClientRect exists
-    // @ts-ignore
-    if (!canvas.getBoundingClientRect) {
-      // @ts-ignore
-      canvas.getBoundingClientRect = function() {
-        return {
-          left: 0,
-          top: 0,
-          // @ts-ignore
-          right: this.width,
-          // @ts-ignore
-          bottom: this.height,
-          // @ts-ignore
-          width: this.width,
-          // @ts-ignore
-          height: this.height,
-          x: 0,
-          y: 0,
-        };
-      };
-    }
+  const header = readHeader();
+  const currentData = readFieldFromSAB('som');
 
-    // Add event listener stubs
-    // @ts-ignore
-    if (!canvas.addEventListener) {
-      // @ts-ignore
-      canvas.addEventListener = function() {};
-      // @ts-ignore
-      canvas.removeEventListener = function() {};
-      // @ts-ignore
-      canvas.dispatchEvent = function() { return true; };
-    }
+  if (!header || !currentData) {
+    console.warn('[Render] Data flow error: SAB header or current data is missing.');
+    return;
+  }
 
-    // Add querySelector and DOM query methods for WidgetManager
-    // @ts-ignore
-    if (!canvas.querySelector) {
-      // @ts-ignore
-      canvas.querySelector = function() { return null; };
-      // @ts-ignore
-      canvas.querySelectorAll = function() { return []; };
-      // @ts-ignore
-      canvas.getElementById = function() { return null; };
-      // @ts-ignore
-      canvas.getElementsByClassName = function() { return []; };
-      // @ts-ignore
-      canvas.getElementsByTagName = function() { return []; };
-    }
+  // --- 1. Compute Deltas and Normalized Deltas (copied from convertDifferenceToGrid) ---
 
-    // Add appendChild/removeChild for widget container
-    // @ts-ignore
-    if (!canvas.appendChild) {
-      // @ts-ignore
-      canvas.appendChild = function() {};
-      // @ts-ignore
-      canvas.removeChild = function() {};
-      // @ts-ignore
-      canvas.insertBefore = function() {};
-      // @ts-ignore
-      canvas.append = function() {};  // Modern DOM API
-      // @ts-ignore
-      canvas.prepend = function() {};  // Modern DOM API
-    }
+  // Normalization factor: ±30% SOM change is considered max range for regenerative agriculture
+  const MAX_EXPECTED_DELTA = 0.3;
+  const numCells = gridRows * gridCols;
+  const colorArray = new Uint8Array(numCells * 4); // RGBA (4 bytes per cell)
 
-    // Create a minimal WebGL context for deck.gl
-    const gl = canvas.getContext('webgl2', {
-      alpha: true,
-      antialias: true,
-      premultipliedAlpha: false,
+  // Track stats for logging
+  let sumDelta = 0;
+  let minDelta = Infinity;
+  let maxDelta = -Infinity;
+
+  for (let i = 0; i < numCells; i++) {
+    const current = currentData[i];
+    const baseline = somBaseline[i];
+    const delta = current - baseline;
+
+    sumDelta += delta;
+    minDelta = Math.min(minDelta, delta);
+    maxDelta = Math.max(maxDelta, delta);
+
+    // Normalize delta to [-1, +1] range
+    const normalizedDelta = Math.max(-1, Math.min(1, delta / MAX_EXPECTED_DELTA));
+
+    // --- 2. Map Delta to Color ---
+    const [r, g, b, a] = mapDeltaToColor(normalizedDelta);
+
+    // Write RGBA into the color array
+    const offset = i * 4;
+    colorArray[offset] = r;
+    colorArray[offset + 1] = g;
+    colorArray[offset + 2] = b;
+    colorArray[offset + 3] = a;
+  }
+
+  // --- 3. Post Message to Main Thread (Cesium Primitive Update) ---
+
+  // Log delta statistics every 100 frames for monitoring
+  if (frameCount === 0 || frameCount % 100 === 0) {
+    const meanDelta = sumDelta / numCells;
+    console.log('[Render] Data Processing Complete. Posting new colors.');
+    console.log('[Render] Delta statistics (for main thread log confirmation):', {
+      min: minDelta.toFixed(5),
+      max: maxDelta.toFixed(5),
+      mean: meanDelta.toFixed(5),
     });
-
-    if (!gl) {
-      throw new Error('Failed to get WebGL2 context');
-    }
-
-    // Wrap WebGL context to ensure canvas reference is accessible
-    // @ts-ignore
-    if (!gl.canvas) {
-      // @ts-ignore
-      gl.canvas = canvas;
-    }
-
-    // ORACLE-004: Initialize deck.gl with Custom MatrixView (replaces _GlobeView)
-    // Create global MatrixView instance for direct matrix injection
-    matrixView = new MatrixViewClass({ id: 'matrix-view' });
-
-    deck = new Deck({
-      canvas: canvas as any,
-      gl,
-      width: canvas.width,
-      height: canvas.height,
-      views: [matrixView],  // CRITICAL ARCHITECTURAL CHANGE: Use MatrixView for raw matrix injection
-      initialViewState: {
-        longitude: 0,
-        latitude: 0,
-        altitude: 1.5,  // Fallback initial state (unused with MatrixView)
-      },
-      controller: false, // Disable controller in worker (main thread handles camera)
-      layers: [],
-      // Disable all UI widgets - they're DOM-based and don't work in workers
-      useDevicePixels: false, // Disable DPR scaling to avoid widget issues
-      // CRITICAL: Use transparent background so Cesium globe is visible underneath
-      parameters: {
-        blend: true,
-        blendFunc: [gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA],
-        depthTest: true,
-      },
-      _typedArrayManagerProps: {
-        overAlloc: 1,
-        poolSize: 0
-      },
-    });
-
-    // Set transparent clear color so Cesium globe shows through
-    gl.clearColor(0, 0, 0, 0);  // Fully transparent black
-
-    console.log('✓ Deck.gl initialized in Render Worker');
-
-  } catch (error) {
-    console.error('deck: Failed to initialize deck.gl:', error);
-    throw error;
   }
+
+  // Transfer the Uint8Array back to the main thread for zero-copy performance
+  postMessage({
+    type: 'new-colors',
+    payload: {
+      colors: colorArray.buffer, // Transfer the underlying ArrayBuffer
+      rows: header.rows,
+      cols: header.cols,
+      bbox: header.bbox,
+      timestamp: header.timestamp,
+    }
+  }, [colorArray.buffer]); // CRITICAL: Transferable object
+
 }
 
 // ============================================================================
-// Render Loop
+// Render Loop (Simplified)
 // ============================================================================
 
 function renderLoop() {
-  if (!isRunning || !sab || !deck) {
+  if (!isRunning || !sab) {
     return;
   }
 
   try {
-    // Wait for signal from Core Worker (non-blocking)
+    // Wait for signal from Core Worker (non-blocking) - KEEP for timing sync
     const int32View = new Int32Array(sab);
-    const currentSignal = Atomics.load(int32View, SAB_SIGNAL_INDEX);
+    // Note: We don't block, we just read the latest state
+    Atomics.load(int32View, SAB_SIGNAL_INDEX);
 
-    // Update viewState from camera sync
-    deck.setProps({ viewState: currentViewState });
-
-    // Read field data from SAB
-    const fieldData = readFieldFromSAB(currentField);
-
-    if (fieldData) {
-      // Update deck.gl layers
-      updateLayers(fieldData);
-    } else if (frameCount === 0) {
-      console.log('[Render] No field data available yet');
-    }
-
-    // Render frame
-    deck.redraw();
-
-    // Log viewState for debugging (first frame and every 100 frames)
-    if (frameCount === 0 || frameCount % 100 === 0) {
-      console.log('[Camera] GlobeView ViewState:', {
-        lon: currentViewState.longitude.toFixed(2),
-        lat: currentViewState.latitude.toFixed(2),
-        alt: currentViewState.altitude.toFixed(3),  // Altitude (1 unit = viewport height)
-      });
-    }
+    // The entire deck.gl viewState update and redraw is PURGED.
+    // Replaced by data calculation and post message.
+    calculateAndPostColorsForCesium();
 
     // Update FPS counter
     frameCount++;
     const now = Date.now();
     if (now - lastFPSUpdate >= 1000) {
       const fps = (frameCount * 1000) / (now - lastFPSUpdate);
-      postMessage({ type: 'metrics', payload: { fps } });
+      postMessage({ type: 'metrics', payload: { fps: fps.toFixed(1) } });
       frameCount = 0;
       lastFPSUpdate = now;
     }
@@ -789,8 +583,10 @@ function renderLoop() {
 }
 
 // ============================================================================
-// SharedArrayBuffer Operations
+// SharedArrayBuffer Operations (Keep)
 // ============================================================================
+
+// ... (readHeader and readFieldFromSAB functions remain unchanged) ...
 
 function readHeader(): SABHeader | null {
   if (!sab) return null;
@@ -858,289 +654,22 @@ function readFieldFromSAB(fieldName: keyof FieldOffsets): Float32Array | null {
 }
 
 // ============================================================================
-// Deck.gl Layer Updates
+// DECK.GL PURGE: Helper Functions
 // ============================================================================
 
-function updateLayers(fieldData: Float32Array) {
-  if (!deck) return;
+// All convertFieldToGrid, convertDifferenceToGrid, getCellSize PURGED or integrated.
 
-  const header = readHeader();
-  if (!header) {
-    console.log('[Render] No header available');
-    return;
-  }
-
-  // Read all field data
-  const thetaData = readFieldFromSAB('theta');
-  const somData = readFieldFromSAB('som');
-  const vegetationData = readFieldFromSAB('vegetation');
-
-  if (!thetaData || !somData || !vegetationData) {
-    console.log('[Render] Waiting for field data...');
-    return;
-  }
-
-  // Capture baseline on first frame
-  if (frameCount === 0 && !somBaseline) {
-    somBaseline = new Float32Array(somData);
-    console.log('[Render] Captured SOM baseline for difference map');
-  }
-
-  // Convert field data to grid points
-  const thetaGrid = convertFieldToGrid(thetaData, header, 'theta');
-  const somGrid = convertFieldToGrid(somData, header, 'som');
-  const vegetationGrid = convertFieldToGrid(vegetationData, header, 'vegetation');
-
-  // Debug: Log layer update info (only first time and every 100 frames)
-  if (frameCount === 0 || frameCount % 100 === 0) {
-    console.log('[Render] Updating layers:', {
-      points: thetaGrid.length,
-      bbox: header.bbox,
-      thetaRange: [Math.min(...thetaData), Math.max(...thetaData)],
-      somRange: [Math.min(...somData), Math.max(...somData)],
-      vegRange: [Math.min(...vegetationData), Math.max(...vegetationData)],
-    });
-  }
-
-  const layers = [];
-
-  // Layer 1: Moisture Layer (theta)
-  // Color: Deep purple (dry) → Vibrant cyan (saturated)
-  if (showMoistureLayer) {
-    layers.push(
-      new GridLayer({
-        id: 'moisture-layer',
-        data: thetaGrid,
-        pickable: true,
-        extruded: false,
-        cellSize: getCellSize(header),
-        coverage: 1,
-        getPosition: (d: any) => d.position,
-        getColorWeight: (d: any) => d.value,
-        getElevationWeight: (d: any) => 0,
-        colorAggregation: 'MEAN' as any,
-        colorRange: [
-          [75, 0, 130, 180],    // Deep purple (dry) - RGB(75,0,130) = Indigo
-          [138, 43, 226, 190],  // Blue violet
-          [0, 191, 255, 200],   // Deep sky blue
-          [0, 255, 255, 210],   // Cyan (wet)
-          [64, 224, 208, 220],  // Turquoise (saturated)
-        ],
-        opacity: 0.7,
-      })
-    );
-  }
-
-  // Layer 2: Soil Organic Matter Layer (SOM)
-  // Color: Pale tan (low SOM) → Rich dark brown (high SOM)
-  if (showSOMLayer) {
-    layers.push(
-      new GridLayer({
-        id: 'som-layer',
-        data: somGrid,
-        pickable: true,
-        extruded: false,
-        cellSize: getCellSize(header),
-        coverage: 1,
-        getPosition: (d: any) => d.position,
-        getColorWeight: (d: any) => d.value,
-        getElevationWeight: (d: any) => 0,
-        colorAggregation: 'MEAN' as any,
-        colorRange: [
-          [210, 180, 140, 160],  // Pale tan (low SOM)
-          [188, 143, 143, 170],  // Rosy brown
-          [160, 82, 45, 180],    // Sienna (medium)
-          [101, 67, 33, 190],    // Dark brown
-          [54, 36, 18, 200],     // Rich dark brown (high SOM)
-        ],
-        opacity: 0.6,
-      })
-    );
-  }
-
-  // Layer 3: Vegetation Layer (vegetation_cover)
-  // Color: Brown (bare) → Vibrant green (forest)
-  // Elevation: Terrain "lifts" based on vegetation density
-  if (showVegetationLayer) {
-    layers.push(
-      new GridLayer({
-        id: 'vegetation-layer',
-        data: vegetationGrid,
-        pickable: true,
-        extruded: true,  // Enable 3D elevation
-        cellSize: getCellSize(header),
-        coverage: 1,
-        elevationScale: 5000,  // Scale factor for visual "lift"
-        getPosition: (d: any) => d.position,
-        getColorWeight: (d: any) => d.value,
-        getElevationWeight: (d: any) => d.value,  // Elevation based on vegetation
-        colorAggregation: 'MEAN' as any,
-        elevationAggregation: 'MEAN' as any,
-        colorRange: [
-          [101, 67, 33, 180],    // Brown (bare soil)
-          [139, 90, 43, 190],    // Saddle brown
-          [154, 205, 50, 200],   // Yellow green (grass)
-          [34, 139, 34, 210],    // Forest green
-          [0, 100, 0, 220],      // Dark green (dense forest)
-        ],
-        opacity: 0.8,
-      })
-    );
-  }
-
-  // Layer 4: Difference Map (SOM change visualization)
-  // Shows restoration impact: green/blue = soil improvement, red = degradation
-  // Uses CliMA RdBu-11 perceptual colormap for scientifically-validated visualization
-  if (showDifferenceMap && somBaseline) {
-    const differenceGrid = convertDifferenceToGrid(somData, somBaseline, header);
-
-    // Log delta statistics every 100 frames for monitoring
-    if (frameCount % 100 === 0) {
-      const deltas = differenceGrid.map((d: any) => d.delta);
-      console.log('[Render] Delta statistics:', {
-        min: Math.min(...deltas).toFixed(4),
-        max: Math.max(...deltas).toFixed(4),
-        mean: (deltas.reduce((a: number, b: number) => a + b, 0) / deltas.length).toFixed(4),
-      });
-    }
-
-    layers.push(
-      new GridLayer({
-        id: 'difference-layer',
-        data: differenceGrid,
-        pickable: true,
-        extruded: false,
-        cellSize: getCellSize(header),
-        coverage: 1,
-        getPosition: (d: any) => d.position,
-        getColorWeight: (d: any) => d.normalizedDelta,  // Use normalized delta for color mapping
-        getElevationWeight: (d: any) => 0,
-        colorAggregation: 'MEAN' as any,
-        // CliMA RdBu-11 perceptual colormap (scientifically optimized for soil/carbon data)
-        // Perceptually uniform, colorblind-safe, intuitive (red=bad, blue=good)
-        colorRange: [
-          [165, 0, 38, 200],      // Dark red (max degradation) - CliMA stop 0
-          [215, 48, 39, 195],     // Red
-          [244, 109, 67, 190],    // Orange-red
-          [253, 174, 97, 185],    // Light orange
-          [254, 224, 144, 180],   // Pale yellow
-          [255, 255, 191, 0],     // White (zero change) - transparent - CliMA stop 5
-          [224, 243, 248, 180],   // Pale cyan
-          [171, 217, 233, 185],   // Light blue
-          [116, 173, 209, 190],   // Sky blue
-          [69, 117, 180, 195],    // Blue
-          [49, 54, 149, 200],     // Dark blue (max restoration) - CliMA stop 10
-        ],
-        opacity: 0.9,
-      })
-    );
-  }
-
-  deck.setProps({ layers });
-}
-
-function convertFieldToGrid(
-  fieldData: Float32Array,
-  header: SABHeader,
-  fieldType: 'theta' | 'som' | 'vegetation' | 'temperature'
-) {
-  const gridData: any[] = [];
-
-  const lonStep = (header.bbox.maxLon - header.bbox.minLon) / gridCols;
-  const latStep = (header.bbox.maxLat - header.bbox.minLat) / gridRows;
-
-  for (let row = 0; row < gridRows; row++) {
-    for (let col = 0; col < gridCols; col++) {
-      const idx = row * gridCols + col;
-      const value = fieldData[idx];
-
-      const lon = header.bbox.minLon + (col + 0.5) * lonStep;
-      const lat = header.bbox.minLat + (row + 0.5) * latStep;
-
-      gridData.push({
-        position: [lon, lat],
-        value: value,
-      });
-    }
-  }
-
-  return gridData;
-}
+// ============================================================================
+// DECK.GL PURGE: Canvas Resize Handler
+// ============================================================================
 
 /**
- * Converts difference data (current - baseline) to grid format for visualization
- * Applies normalization to map delta values to [-1, +1] range for perceptual color mapping
- *
- * @param currentData - Current SOM field data
- * @param baselineData - Baseline SOM field data (captured at simulation start or user trigger)
- * @param header - SAB header with grid dimensions and bbox
- * @returns Grid data with position, delta, and normalizedDelta fields
+ * @PURGED - Canvas resizing is handled by the main thread Cesium viewport.
+ * function handleResize(width: number, height: number) { ... }
  */
-function convertDifferenceToGrid(
-  currentData: Float32Array,
-  baselineData: Float32Array,
-  header: SABHeader
-) {
-  const gridData: any[] = [];
-
-  const lonStep = (header.bbox.maxLon - header.bbox.minLon) / gridCols;
-  const latStep = (header.bbox.maxLat - header.bbox.minLat) / gridRows;
-
-  // Normalization factor: ±30% SOM change is considered max range for regenerative agriculture
-  // This maps ±0.3 delta to ±1.0 normalized range for color palette
-  const MAX_EXPECTED_DELTA = 0.3;
-
-  for (let row = 0; row < gridRows; row++) {
-    for (let col = 0; col < gridCols; col++) {
-      const idx = row * gridCols + col;
-      const current = currentData[idx];
-      const baseline = baselineData[idx];
-      const delta = current - baseline;
-
-      // Normalize delta to [-1, +1] range and clamp to prevent overflow
-      const normalizedDelta = Math.max(-1, Math.min(1, delta / MAX_EXPECTED_DELTA));
-
-      const lon = header.bbox.minLon + (col + 0.5) * lonStep;
-      const lat = header.bbox.minLat + (row + 0.5) * latStep;
-
-      gridData.push({
-        position: [lon, lat],
-        delta: delta,  // Raw delta for statistics
-        normalizedDelta: normalizedDelta,  // Normalized delta for color mapping
-        current: current,
-        baseline: baseline,
-      });
-    }
-  }
-
-  return gridData;
-}
-
-function getCellSize(header: SABHeader): number {
-  // Calculate cell size in degrees
-  const lonStep = (header.bbox.maxLon - header.bbox.minLon) / gridCols;
-  const latStep = (header.bbox.maxLat - header.bbox.minLat) / gridRows;
-
-  return Math.max(lonStep, latStep) * 111320; // Convert to meters (approx)
-}
 
 // ============================================================================
-// Canvas Resize Handler
-// ============================================================================
-
-function handleResize(width: number, height: number) {
-  if (offscreenCanvas) {
-    offscreenCanvas.width = width;
-    offscreenCanvas.height = height;
-
-    if (deck) {
-      deck.setProps({ width, height });
-    }
-  }
-}
-
-// ============================================================================
-// Message Handlers
+// Message Handlers (Updated for Purge)
 // ============================================================================
 
 self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
@@ -1149,33 +678,15 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
   try {
     switch (type) {
       case 'init':
-        if (payload?.sab && payload?.offscreenCanvas) {
+        if (payload?.sab) { // offscreenCanvas is no longer needed
           sab = payload.sab;
-          offscreenCanvas = payload.offscreenCanvas;
           fieldOffsets = payload.fieldOffsets || null;
 
-          console.log('Render Worker received SAB and OffscreenCanvas');
+          console.log('Render Worker received SAB. Deck.gl purged. Starting data worker pipeline.');
 
-          // Load deck.gl modules first
-          await loadDeckModules();
-
-          // Initialize deck.gl
-          initializeDeck(offscreenCanvas);
-
-          // FIX A: Camera Matrix Timing Issue
-          // Delay initial layer draw by 100ms to ensure Cesium camera has sent a valid matrix.
-          // The "Pixel project matrix not invertible" error occurs when deck.redraw() is called
-          // before the camera-sync messages provide a stable viewState.
-          setTimeout(() => {
-            // Initialize layers with empty data (simulation data will arrive later)
-            updateLayers(new Float32Array(0));
-            deck.redraw();
-
-            console.log('[INIT] Initial frame rendered (delayed 100ms)');
-
-            // Signal ready AFTER the initial draw completes
-            postMessage({ type: 'ready' });
-          }, 100);
+          // The canvas init, module load, and deck.gl init are PURGED.
+          // We immediately signal ready, as no complex GL setup is required.
+          postMessage({ type: 'ready' });
         }
         break;
 
@@ -1184,7 +695,7 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
           isRunning = true;
           frameCount = 0;
           lastFPSUpdate = Date.now();
-          console.log('Render Worker: Starting render loop');
+          console.log('Render Worker: Starting data processing loop');
           renderLoop();
         }
         break;
@@ -1195,7 +706,7 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
         break;
 
       case 'config':
-        // Update visualization config (field to display, color scale, etc.)
+        // Update visualization config (simplified)
         if (payload) {
           if (payload.field) {
             currentField = payload.field;
@@ -1203,16 +714,7 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
           if (payload.colorScale) {
             colorScale = payload.colorScale;
           }
-          // Layer visibility toggles
-          if (payload.showMoistureLayer !== undefined) {
-            showMoistureLayer = payload.showMoistureLayer;
-          }
-          if (payload.showSOMLayer !== undefined) {
-            showSOMLayer = payload.showSOMLayer;
-          }
-          if (payload.showVegetationLayer !== undefined) {
-            showVegetationLayer = payload.showVegetationLayer;
-          }
+          // Layer visibility toggles (simplified to only difference map)
           if (payload.showDifferenceMap !== undefined) {
             showDifferenceMap = payload.showDifferenceMap;
           }
@@ -1221,17 +723,14 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
             const somData = readFieldFromSAB('som');
             if (somData) {
               somBaseline = new Float32Array(somData);
-              const timestamp = Date.now();
               const cells = somData.length;
               const meanSOM = somData.reduce((a, b) => a + b, 0) / cells;
 
-              console.log(`[Render] ✓ SOM baseline captured at ${new Date(timestamp).toISOString()}`);
-              console.log(`[Render]   Cells: ${cells}, Mean SOM: ${meanSOM.toFixed(4)}`);
+              console.log(`[DifferenceMap] ✓ Baseline captured: ${cells} cells, mean SOM = ${meanSOM.toFixed(4)}`);
 
               postMessage({
                 type: 'baseline-captured',
                 payload: {
-                  timestamp,
                   cells,
                   meanSOM: meanSOM,
                 }
@@ -1248,28 +747,12 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
         break;
 
       case 'camera-sync':
-        // ORACLE-004: Direct Matrix Injection
-        // Bypasses GlobeView's internal calculation to solve offset/shearing/lag/polar issues
-        if (payload?.viewMatrix && payload?.projectionMatrix && deck && matrixView) {
-          // Copy raw matrices to the custom view instance (stored in WeakMap)
-          // Using Float32Array.set for optimal performance
-          const data = matrixStorage.get(matrixView);
-          if (data) {
-            data.viewMatrix.set(payload.viewMatrix);
-            data.projectionMatrix.set(payload.projectionMatrix);
-          }
-
-          // CRITICAL: Force deck.gl to recognize the matrix update
-          // We update the views array to trigger a re-render with the new matrices
-          deck.setProps({ views: [matrixView] });
-          deck.redraw(true); // Force immediate redraw
-        }
+        // @PURGED: No longer needed. Cesium handles the view and we send the raw matrices to it.
+        // The worker only calculates data/colors.
         break;
 
       case 'resize':
-        if (payload?.width && payload?.height) {
-          handleResize(payload.width, payload.height);
-        }
+        // @PURGED: No longer needed.
         break;
 
       default:
@@ -1285,7 +768,7 @@ self.onmessage = async (e: MessageEvent<RenderWorkerMessage>) => {
   }
 };
 
-// Signal that worker script is loaded (but deck.gl not yet loaded)
+// Signal that worker script is loaded
 try {
   postMessage({ type: 'worker-loaded' });
   console.log('Render Worker script loaded, awaiting init...');

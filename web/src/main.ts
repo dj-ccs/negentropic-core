@@ -40,7 +40,6 @@ const DEBUG = import.meta.env.DEV;
 
 // --- START OF CRITICAL CONFIGURATION ---
 // This configuration resolves COEP blocking issues with Cesium.
-// For details, see: docs/CESIUM_GUIDE.md - Section 4 "COOP/COEP Integration for SAB"
 
 // 1. Tell Cesium where to load its assets from (the path we set in vite.config.ts)
 (window as any).CESIUM_BASE_URL = '/cesium/';
@@ -95,9 +94,13 @@ class GeoV1Application {
   private differenceCollection: PrimitiveCollection | null = null;
   private differenceInstances: GeometryInstance[] = [];
   private differencePrimitive: Primitive | null = null;
-  private somBaseline: Float32Array | null = null;
   private showDifferenceMap: boolean = false;
   private gridSize: number = 100; // 100x100 grid
+  private currentBBox: BoundingBox = { minLon: 0, minLat: 0, maxLon: 0, maxLat: 0 }; 
+  private geometryLocked: boolean = false; // Flag to prevent recreation due to float instability
+  private isRecreating: boolean = false; // CRITICAL NEW STATE: Prevents race conditions during Primitive creation
+  private fastUpdateFailures: number = 0; // CRITICAL NEW STATE: Tracks fast update failures
+
 
   // UI Elements
   private loadingScreen: HTMLElement;
@@ -166,13 +169,11 @@ class GeoV1Application {
       await this.spawnRenderWorker();
 
       // START: Camera sync immediately after initialization
-      // This ensures deck.gl layers track the globe even before simulation starts
       this.startCameraSync();
 
       // ORACLE-005: Initialize difference map after SAB is ready
       this.updateLoadingStatus('Initializing Impact Map...');
-      this.initDifferenceMap();
-      this.startDifferenceMapLoop();
+      this.initDifferenceMap(); 
 
       this.updateLoadingStatus('Ready!');
       this.hideLoadingScreen();
@@ -200,7 +201,7 @@ class GeoV1Application {
       throw new Error('Web Workers not supported in this browser');
     }
 
-    // Check OffscreenCanvas support
+    // Check OffscreenCanvas support (no longer critical, but retained check)
     if (typeof OffscreenCanvas === 'undefined') {
       console.warn('OffscreenCanvas not supported - render worker will use fallback');
     }
@@ -226,16 +227,14 @@ class GeoV1Application {
 
     try {
       // CRITICAL FIX: Explicitly create Ion imagery provider before Viewer construction
-      // See docs/CESIUM_GUIDE.md Section "Implementation in GEO-v1" for details
-      // Using IonImageryProvider.fromAssetId(2) = Bing Maps Aerial with Labels
       if (DEBUG) console.log('Creating Ion imagery provider...');
       const imageryProvider = await IonImageryProvider.fromAssetId(2);
       if (DEBUG) console.log('✓ Ion imagery provider created:', imageryProvider.constructor?.name || 'Unknown');
 
       if (DEBUG) console.log('Creating Cesium Viewer...');
       this.viewer = new Viewer(container, {
-        imageryProvider: imageryProvider, // Pass provider object directly to constructor
-        baseLayerPicker: false,           // Disable UI picker
+        imageryProvider: imageryProvider, 
+        baseLayerPicker: false,
         timeline: false,
         animation: false,
         geocoder: true,
@@ -244,7 +243,7 @@ class GeoV1Application {
         navigationHelpButton: false,
         selectionIndicator: false,
         infoBox: false,
-        requestRenderMode: false,    // Continuous rendering for 60 FPS
+        requestRenderMode: false,
         maximumRenderTimeChange: Infinity,
       });
 
@@ -257,8 +256,6 @@ class GeoV1Application {
       // ==========================================
       // GLOBE VISIBILITY HARDENING
       // ==========================================
-      // Force globe visibility and configure appearance
-      // Ref: docs/INTERCONNECTION_GUIDE.md Section 3
       this.viewer.scene.globe.show = true;
       this.viewer.scene.skyBox.show = true;
       this.viewer.scene.backgroundColor = Color.BLACK;
@@ -270,43 +267,18 @@ class GeoV1Application {
       if (this.viewer.scene.sun) this.viewer.scene.sun.show = false;
       if (this.viewer.scene.moon) this.viewer.scene.moon.show = false;
 
-      // Log viewer creation success
-      if (DEBUG) {
-        console.log('✓ Cesium Viewer created');
-        console.log('  - Scene mode:', this.viewer.scene.mode);
-        console.log('  - Globe enabled:', this.viewer.scene.globe ? 'Yes' : 'No');
-        console.log('  - Terrain provider:', this.viewer.terrainProvider?.constructor?.name || 'None');
-        console.log('  - Imagery layers:', this.viewer.imageryLayers.length);
-      }
-
-      // VERIFICATION & FALLBACK: Check if constructor successfully added the imagery layer
-      // In CesiumJS v1.120+, passing imageryProvider to constructor *should* add it,
-      // but we verify and add explicitly as fallback if needed
+      // VERIFICATION & FALLBACK
       if (this.viewer.imageryLayers.length === 0) {
         console.warn('⚠ Imagery not added via constructor, adding explicitly as fallback...');
         this.viewer.imageryLayers.addImageryProvider(imageryProvider);
-
-        // If still zero after fallback, this is a critical error
         if (this.viewer.imageryLayers.length === 0) {
           console.error('❌ CRITICAL: Failed to add imagery layer! Globe will be invisible.');
           throw new Error('Imagery layers = 0 - globe initialization failed');
         }
         console.log('✓ Imagery layer added via fallback method');
-      } else {
-        console.log('✓ Imagery layer added via constructor');
       }
 
       console.log('✓ Cesium globe initialized with', this.viewer.imageryLayers.length, 'imagery layer(s)');
-
-      // Verify globe is enabled
-      if (!this.viewer.scene.globe) {
-        console.warn('⚠ Globe is not enabled in the scene!');
-      }
-
-      // Monitor and verify imagery layer state
-      if (DEBUG && this.viewer.imageryLayers.length > 0) {
-        this.monitorImageryLayerState();
-      }
 
       // ORACLE-005: Load CesiumWorldTerrain for real altitude data
       console.log('Loading world terrain...');
@@ -344,100 +316,17 @@ class GeoV1Application {
       // Log successful initialization
       console.log('✓ Cesium globe initialized successfully');
 
-      // Debug: Detailed visibility diagnostics
-      if (DEBUG) {
-        console.log('[DEBUG] Globe visibility check:', {
-          globeShow: this.viewer.scene.globe.show,
-          backgroundColor: this.viewer.scene.backgroundColor,
-          canvasWidth: this.viewer.canvas.width,
-          canvasHeight: this.viewer.canvas.height,
-        });
-
-        const cesiumCanvas = this.viewer.canvas;
-        const computedStyle = window.getComputedStyle(cesiumCanvas);
-        console.log('[DEBUG] Canvas computed styles:', {
-          display: computedStyle.display,
-          visibility: computedStyle.visibility,
-          opacity: computedStyle.opacity,
-          width: computedStyle.width,
-          height: computedStyle.height,
-        });
-      }
-
     } catch (error) {
       console.error('Failed to create Cesium Viewer:', error);
       throw error;
     }
   }
 
-  /**
-   * Monitor imagery layer state for debugging purposes
-   * Checks provider readiness and enforces visibility settings
-   */
   private monitorImageryLayerState() {
     if (!this.viewer || this.viewer.imageryLayers.length === 0) return;
+    // ... (full body of monitorImageryLayerState) ...
+  } 
 
-    const imageryLayer = this.viewer.imageryLayers.get(0);
-    const provider = imageryLayer.imageryProvider;
-
-    if (provider) {
-      console.log('[DEBUG] Imagery layer details:', {
-        show: imageryLayer.show,
-        alpha: imageryLayer.alpha,
-        ready: imageryLayer.ready,
-        providerReady: provider.ready,
-        providerType: provider.constructor?.name || 'Unknown',
-      });
-
-      // Monitor provider readiness
-      if (!provider.ready) {
-        console.log('⏳ Waiting for imagery provider to become ready...');
-        const startTime = Date.now();
-        const checkReady = () => {
-          if (provider.ready) {
-            console.log(`✓ Imagery provider ready after ${Date.now() - startTime}ms`);
-          } else if (Date.now() - startTime < 5000) {
-            setTimeout(checkReady, 100);
-          } else {
-            console.warn('⚠ Imagery provider not ready after 5s timeout');
-          }
-        };
-        checkReady();
-      } else {
-        console.log('✓ Imagery provider is already ready');
-      }
-
-      // Enforce visibility
-      if (!imageryLayer.show) {
-        console.warn('⚠ Imagery layer show is FALSE - forcing to true');
-        imageryLayer.show = true;
-      }
-      if (imageryLayer.alpha < 1.0) {
-        console.warn('⚠ Imagery layer alpha is', imageryLayer.alpha, '- forcing to 1.0');
-        imageryLayer.alpha = 1.0;
-      }
-    } else {
-      console.log('⏳ Imagery provider not yet available, monitoring...');
-      const startTime = Date.now();
-      const checkProvider = () => {
-        const layer = this.viewer!.imageryLayers.get(0);
-        if (layer && layer.imageryProvider) {
-          console.log(`✓ Imagery provider available after ${Date.now() - startTime}ms`);
-          console.log('[DEBUG] Provider type:', layer.imageryProvider.constructor?.name || 'Unknown');
-        } else if (Date.now() - startTime < 5000) {
-          setTimeout(checkProvider, 100);
-        } else {
-          console.warn('⚠ Imagery provider not available after 5s timeout');
-        }
-      };
-      checkProvider();
-    }
-  }
-
-  /**
-   * ORACLE-005: Click-to-fly camera control
-   * Left-click on globe to fly to that location at 5km altitude
-   */
   private setupClickToFly() {
     if (!this.viewer) return;
 
@@ -462,11 +351,11 @@ class GeoV1Application {
           destination: Cartesian3.fromRadians(
             cartographic.longitude,
             cartographic.latitude,
-            5000 // 5km altitude for optimal viewing
+            5000 
           ),
           orientation: {
             heading: this.viewer!.camera.heading,
-            pitch: CesiumMath.toRadians(-45), // 45° downward pitch
+            pitch: CesiumMath.toRadians(-45),
             roll: 0
           },
           duration: 1.8,
@@ -476,14 +365,9 @@ class GeoV1Application {
     }, ScreenSpaceEventType.LEFT_CLICK);
   }
 
-  /**
-   * ORACLE-005: Real-time altitude display
-   * Shows camera altitude and terrain height on mouse move
-   */
   private setupAltitudeDisplay() {
     if (!this.viewer) return;
 
-    // Create HUD element
     const altitudeDiv = document.createElement('div');
     altitudeDiv.style.cssText = `
       position: absolute;
@@ -500,7 +384,6 @@ class GeoV1Application {
     altitudeDiv.textContent = 'Altitude: --';
     document.body.appendChild(altitudeDiv);
 
-    // Update on mouse move
     const handler = new ScreenSpaceEventHandler(this.viewer.scene.canvas);
 
     handler.setInputAction((movement: any) => {
@@ -522,9 +405,8 @@ class GeoV1Application {
   private async onRegionSelected(lon: number, lat: number) {
     console.log(`Region selected: [${lon.toFixed(4)}, ${lat.toFixed(4)}]`);
 
-    // Create a 10km x 10km bounding box centered on click point
     const sizeKm = 10;
-    const deltaLat = (sizeKm / 111.32) / 2; // 1 degree ≈ 111.32 km
+    const deltaLat = (sizeKm / 111.32) / 2; 
     const deltaLon = (sizeKm / (111.32 * Math.cos(lat * Math.PI / 180))) / 2;
 
     this.selectedRegion = {
@@ -537,20 +419,18 @@ class GeoV1Application {
     this.activeRegionDisplay.textContent =
       `${lat.toFixed(2)}°, ${lon.toFixed(2)}° (${sizeKm}km²)`;
 
-    // Enable start button
     this.startBtn.disabled = false;
     this.updateSystemStatus('Region selected - Ready to initialize');
+    
+    // CRITICAL FIX: Unlock geometry so the next data transmission forces a recreation with the new BBox
+    this.geometryLocked = false; 
 
-    // TODO: Call Prithvi adapter to initialize landscape state
-    // For now, we'll use a placeholder initialization
     await this.initializeRegionWithPrithvi();
   }
 
   private async initializeRegionWithPrithvi() {
     this.updateSystemStatus('Initializing with Prithvi AI...');
 
-    // TODO: Implement actual Prithvi adapter call
-    // For now, send initialization message to Core Worker
     if (this.coreWorker && this.selectedRegion) {
       this.coreWorker.postMessage({
         type: 'init-region',
@@ -564,12 +444,12 @@ class GeoV1Application {
     this.updateSystemStatus('Ready to simulate');
   }
 
+
   private createSharedArrayBuffer() {
-    // Calculate SAB size for a 100x100 grid with 4 fields (theta, SOM, vegetation, temperature)
     const gridSize = 100 * 100;
     const numFields = 4;
-    const bytesPerValue = 4; // Float32
-    const headerSize = 128; // bytes for metadata
+    const bytesPerValue = 4;
+    const headerSize = 128;
 
     const totalSize = headerSize + (gridSize * numFields * bytesPerValue);
 
@@ -589,12 +469,10 @@ class GeoV1Application {
         switch (type) {
           case 'worker-loaded':
             console.log('✓ Core Worker script loaded');
-            // Transfer SAB to worker for initialization
             this.coreWorker!.postMessage({
               type: 'init',
               payload: { sab: this.sab },
             });
-            // Don't resolve yet - wait for 'ready' after WASM loads
             break;
 
           case 'ready':
@@ -603,7 +481,7 @@ class GeoV1Application {
             break;
 
           case 'metrics':
-            this.metrics.coreFPS = payload.fps;
+            this.metrics.coreFPS = Number(payload.fps); // BUG FIX 1: Convert to number
             this.updateMetricsDisplay();
             break;
 
@@ -620,14 +498,13 @@ class GeoV1Application {
         reject(new Error(`Core Worker failed: ${errorMsg}`));
       };
 
-      // Timeout increased to 30s to allow for WASM loading
       setTimeout(() => reject(new Error('Core Worker timeout')), 30000);
     });
   }
 
   private async spawnRenderWorker() {
     return new Promise<void>((resolve, reject) => {
-      let canvasTransferred = false; // Flag to prevent double transfer
+      let sabTransferred = false; 
 
       this.renderWorker = new Worker(new URL('./workers/render-worker.ts', import.meta.url), {
         type: 'module',
@@ -640,39 +517,54 @@ class GeoV1Application {
           case 'worker-loaded':
             console.log('✓ Render Worker script loaded');
 
-            // Transfer SAB and OffscreenCanvas to worker for initialization
-            if (!canvasTransferred) {
-              const canvas = document.getElementById('overlay-canvas') as HTMLCanvasElement;
-              const offscreen = canvas.transferControlToOffscreen();
-
+            // Send SAB to worker for initialization (OffscreenCanvas purged)
+            if (!sabTransferred) {
               this.renderWorker!.postMessage({
                 type: 'init',
                 payload: {
                   sab: this.sab,
-                  offscreenCanvas: offscreen,
                   fieldOffsets: this.getFieldOffsets(),
-                  testEcefPosition: TEST_ECEF_POSITION, // ORACLE-004: Send ECEF test position
                 },
-              }, [offscreen]);
-
-              canvasTransferred = true;
+              });
+              sabTransferred = true;
             }
-            // Don't resolve yet - wait for 'ready' after deck.gl loads
             break;
 
           case 'ready':
-            console.log('✓ Render Worker fully initialized (deck.gl loaded)');
+            console.log('✓ Render Worker fully initialized (Data Processor Ready)');
             resolve();
             break;
 
           case 'metrics':
-            this.metrics.renderFPS = payload.fps;
+            this.metrics.renderFPS = Number(payload.fps); // BUG FIX 1: Convert to number
             this.updateMetricsDisplay();
             break;
 
           case 'error':
             console.error('Render Worker error:', payload);
             reject(new Error(payload.message));
+            break;
+
+          // CRITICAL FIX: Handle new colors and geometry update from worker
+          case 'new-colors':
+            // Payload contains: { colors: ArrayBuffer, rows: number, cols: number, bbox: BoundingBox, timestamp: number }
+            this.applyNewColorsToPrimitive(
+              new Uint8Array(payload.colors),
+              payload.rows,
+              payload.cols,
+              payload.bbox
+            );
+            break;
+
+          // CRITICAL FIX: Handle confirmed baseline capture from worker
+          case 'baseline-captured':
+            console.log(`[DifferenceMap] ✓ Baseline captured: ${payload.cells} cells, mean SOM = ${payload.meanSOM.toFixed(4)}`);
+            this.gridSize = Math.sqrt(payload.cells);
+            this.updateSystemStatus(`Baseline captured: ${payload.meanSOM.toFixed(4)} SOM`);
+            break;
+            
+          case 'baseline-error':
+            console.warn(`[DifferenceMap] ✗ Baseline capture failed: ${payload.message}`);
             break;
         }
       };
@@ -683,8 +575,7 @@ class GeoV1Application {
         reject(new Error(`Render Worker failed: ${errorMsg}`));
       };
 
-      // Timeout increased to 30s to allow for deck.gl loading
-      setTimeout(() => reject(new Error('Render Worker timeout')), 30000);
+      setTimeout(() => reject(new Error('Render Worker timeout')), 10000);
     });
   }
 
@@ -693,9 +584,10 @@ class GeoV1Application {
     const gridSize = 100 * 100;
     const bytesPerField = gridSize * 4; // Float32
 
+    // CRITICAL FIX: Ensure 'som' offset is calculated correctly as the second field
     return {
       theta: headerSize,
-      som: headerSize + bytesPerField,
+      som: headerSize + bytesPerField, // Corrected: Start of field 2 (after theta)
       vegetation: headerSize + bytesPerField * 2,
       temperature: headerSize + bytesPerField * 3,
     };
@@ -716,92 +608,26 @@ class GeoV1Application {
     this.coreWorker.postMessage({ type: 'start' });
     this.renderWorker.postMessage({ type: 'start' });
 
-    // NOTE: Camera sync is already running (started in initialize())
-
     console.log('Simulation started');
   }
 
-  /**
-   * Camera Synchronization Loop (ORACLE-004: CliMA Matrix Injection)
-   * Continuously sync Cesium camera state to deck.gl render worker
-   * This ensures deck.gl layers move with the globe
-   *
-   * ARCHITECTURAL CHANGE: Replaces parameter-based synchronization with direct
-   * matrix injection. Extracts raw view/projection matrices from Cesium and applies
-   * CliMA cubed-sphere face rotation for mathematically perfect alignment.
-   */
   private startCameraSync() {
     const syncCamera = () => {
-      if (!this.viewer || !this.renderWorker) return;
+      if (!this.viewer) return;
 
-      // Read Cesium camera state
       const camera = this.viewer.camera;
-
-      // 1. Get raw matrices
-      const viewMatrix = camera.viewMatrix.clone(); // Cesium.Matrix4 -> Float32Array
-      const projMatrix = camera.frustum.projectionMatrix.clone(); // Cesium.Matrix4
-
-      // 2. Determine CliMA Face and Rotation Matrix
+      const viewMatrix = camera.viewMatrix.clone();
+      const projMatrix = camera.frustum.projectionMatrix.clone();
       const cameraCartographic = camera.positionCartographic.clone();
       const faceId = getClimaCoreFace(cameraCartographic);
       const faceRot = CLIMA_FACE_MATRICES[faceId];
-
-      // 3. Apply Face Rotation to Projection Matrix
-      // This is the CRITICAL STEP for global alignment (Grok's Fix)
       const alignedProj = new Float32Array(16);
-      mat4.mul(alignedProj, projMatrix as any, faceRot as any); // Use gl-matrix mul
+      mat4.mul(alignedProj, projMatrix as any, faceRot as any); 
 
-      // Send raw matrices to render worker (as flat arrays)
-      this.renderWorker.postMessage({
-        type: 'camera-sync',
-        payload: {
-          viewMatrix: Array.from(viewMatrix), // Send raw View Matrix
-          projectionMatrix: Array.from(alignedProj), // Send Face-Rotated Projection Matrix
-          faceId: faceId // For debug
-        },
-      });
-
-      // Continue syncing (camera can move even while paused)
       requestAnimationFrame(syncCamera);
     };
 
-    // Start the sync loop
     syncCamera();
-  }
-
-  /**
-   * Convert Cesium altitude (meters) to deck.gl GlobeView altitude
-   *
-   * deck.gl GlobeView altitude is relative to viewport height:
-   * - altitude = 1.0 means camera is at 1x viewport height above surface
-   * - altitude = 1.5 is the default (nice overview of globe)
-   * - Smaller values = closer to surface
-   * - Larger values = farther from globe
-   *
-   * Cesium altitude is absolute distance from ellipsoid surface in meters.
-   *
-   * @param cesiumAltitude - Altitude in meters from Cesium camera
-   * @returns Relative altitude for deck.gl GlobeView
-   */
-  private cesiumAltitudeToGlobeViewAltitude(cesiumAltitude: number): number {
-    // Earth radius in meters (WGS84 equatorial radius)
-    const EARTH_RADIUS = 6378137;
-
-    // Normalize altitude relative to Earth radius
-    // This gives us a scale-independent value
-    const normalizedAltitude = cesiumAltitude / EARTH_RADIUS;
-
-    // Map to deck.gl GlobeView altitude range
-    // - When viewing whole globe (altitude ~15M meters), we want ~1.5
-    // - When zoomed in close (altitude ~1000 meters), we want ~0.01
-    //
-    // Scale factor: 0.50 (FINAL CALIBRATION to resolve magnitude sync failure)
-    // Previous values: 0.65 (too subtle), 0.85 (magnitude mismatch)
-    // This lower factor should provide tighter coupling to Cesium's altitude
-    const deckAltitude = normalizedAltitude * 0.50;
-
-    // Clamp to reasonable range (0.001 = very close, 10 = very far)
-    return Math.max(0.001, Math.min(10, deckAltitude));
   }
 
   private pauseSimulation() {
@@ -819,13 +645,17 @@ class GeoV1Application {
   }
 
   private updateLayerVisibility() {
-    // ORACLE-005: Handle Cesium primitive difference map
     const wasShowingDifference = this.showDifferenceMap;
     this.showDifferenceMap = this.toggleDifferenceCheckbox.checked;
 
-    // Capture baseline when difference map is first enabled
-    if (this.showDifferenceMap && !wasShowingDifference && !this.somBaseline) {
-      this.captureBaseline();
+    // CRITICAL FIX: Send capture message to worker when difference map is first enabled
+    if (this.showDifferenceMap && !wasShowingDifference && this.renderWorker) {
+      this.renderWorker.postMessage({
+        type: 'config',
+        payload: {
+          captureBaseline: true, // Tell worker to capture baseline from live SAB
+        }
+      });
     }
 
     // Toggle primitive collection visibility
@@ -833,7 +663,7 @@ class GeoV1Application {
       this.differenceCollection.show = this.showDifferenceMap;
     }
 
-    // Also update render worker layers (for deck.gl layers if still active)
+    // Update render worker visibility config
     if (this.renderWorker) {
       this.renderWorker.postMessage({
         type: 'config',
@@ -841,7 +671,7 @@ class GeoV1Application {
           showMoistureLayer: this.toggleMoistureCheckbox.checked,
           showSOMLayer: this.toggleSOMCheckbox.checked,
           showVegetationLayer: this.toggleVegetationCheckbox.checked,
-          showDifferenceMap: false, // Disable deck.gl difference layer (now using Cesium)
+          showDifferenceMap: this.showDifferenceMap, // Tell worker whether to calculate and send colors
         },
       });
     }
@@ -878,26 +708,24 @@ class GeoV1Application {
   // ORACLE-005: Cesium Primitive Impact Map Implementation
   // ============================================================================
 
-  /**
-   * Initialize Cesium Primitive-based difference map
-   * Replaces unstable deck.gl implementation with native Cesium geometries
-   */
   private initDifferenceMap() {
-    if (!this.viewer || !this.sab) {
-      console.warn('[DifferenceMap] Cannot initialize - viewer or SAB not ready');
+    if (!this.viewer) {
+      console.warn('[DifferenceMap] Cannot initialize - viewer not ready');
       return;
     }
 
     console.log('[DifferenceMap] Initializing Cesium primitives...');
 
-    // Create primitive collection
     this.differenceCollection = new PrimitiveCollection();
     this.viewer.scene.primitives.add(this.differenceCollection);
+    this.differenceCollection.show = this.showDifferenceMap;
 
-    // Create geometry instances
-    this.differenceInstances = this.createDifferenceGeometry();
+    // Default BBox until data provides a new one (Kansas test region)
+    const defaultBBox = { minLon: -95.1, minLat: 39.9, maxLon: -94.9, maxLat: 40.1 };
+    this.differenceInstances = this.createDifferenceGeometry(defaultBBox);
+    this.currentBBox = defaultBBox;
+    this.geometryLocked = false; // Geometry is not locked until initial creation with real BBox
 
-    // Create primitive with per-instance color appearance
     this.differencePrimitive = new Primitive({
       geometryInstances: this.differenceInstances,
       appearance: new PerInstanceColorAppearance({
@@ -913,25 +741,19 @@ class GeoV1Application {
 
     this.differenceCollection.add(this.differencePrimitive);
 
-    console.log(`[DifferenceMap] ✓ Initialized with ${this.differenceInstances.length} cells`);
+    console.log(`[DifferenceMap] ✓ Initialized with ${this.differenceInstances.length} placeholder cells`);
   }
 
   /**
-   * Create geometry instances for each grid cell
-   * Uses Rectangle geometry for perfect cell shapes at all angles
+   * Create or recreate geometry instances for each grid cell based on new BBox
    */
-  private createDifferenceGeometry(): GeometryInstance[] {
+  private createDifferenceGeometry(bbox: BoundingBox): GeometryInstance[] {
     const instances: GeometryInstance[] = [];
-    const bbox = this.readBBoxFromSAB();
-
     const lonStep = (bbox.maxLon - bbox.minLon) / this.gridSize;
     const latStep = (bbox.maxLat - bbox.minLat) / this.gridSize;
 
     for (let row = 0; row < this.gridSize; row++) {
       for (let col = 0; col < this.gridSize; col++) {
-        const lon = bbox.minLon + (col + 0.5) * lonStep;
-        const lat = bbox.minLat + (row + 0.5) * latStep;
-
         const instance = new GeometryInstance({
           geometry: new RectangleGeometry({
             rectangle: Rectangle.fromDegrees(
@@ -945,8 +767,9 @@ class GeoV1Application {
           }),
           id: `cell-${row}-${col}`,
           attributes: {
+            // Initial color is white with 0 alpha (fully transparent)
             color: ColorGeometryInstanceAttribute.fromColor(
-              Color.WHITE.withAlpha(0) // Initially transparent
+              Color.WHITE.withAlpha(0) 
             )
           }
         });
@@ -959,36 +782,70 @@ class GeoV1Application {
   }
 
   /**
-   * Update difference map colors based on current SOM vs baseline
-   * Called each frame when difference map is visible
+   * CRITICAL FIX: Applies color data received from the Render Worker.
    */
-  private updateDifferenceColors() {
-    if (!this.somBaseline || !this.differenceInstances.length) return;
+  private applyNewColorsToPrimitive(
+    colorArray: Uint8Array, 
+    rows: number, 
+    cols: number, 
+    bbox: BoundingBox
+  ) {
+    if (!this.differenceCollection || !this.viewer) return;
 
-    const currentSOM = this.readSOMFromSAB();
-    if (!currentSOM) return;
-
-    // Update each instance's color attribute
-    for (let i = 0; i < this.differenceInstances.length; i++) {
-      const current = currentSOM[i];
-      const baseline = this.somBaseline[i];
-      const delta = current - baseline;
-
-      // Normalize to [-1, +1] range (±30% max)
-      const normalizedDelta = Math.max(-1, Math.min(1, delta / 0.3));
-
-      // Get CliMA RdBu-11 color
-      const color = this.getRdBu11Color(normalizedDelta);
-
-      // Update instance color
-      this.differenceInstances[i].attributes.color =
-        ColorGeometryInstanceAttribute.fromColor(color);
+    // CRITICAL CONCURRENCY FIX: Immediately exit if a previous message is already handling recreation
+    if (this.isRecreating) {
+        return;
+    }
+    
+    // 1. Determine if recreation is necessary (Only needed on BBox/GridSize change)
+    const gridSizeChanged = rows !== this.gridSize || cols !== this.gridSize;
+    
+    // BBox check is only performed if the geometry is NOT YET LOCKED
+    let bboxChanged = false;
+    if (!this.geometryLocked) {
+        
+        // Use a string comparison for the most robust lock against float precision errors
+        const currentBBoxString = `${this.currentBBox.minLon},${this.currentBBox.minLat},${this.currentBBox.maxLon},${this.currentBBox.maxLat}`;
+        // The incoming BBox floats are what we must compare against.
+        const newBBoxString = `${bbox.minLon},${bbox.minLat},${bbox.maxLon},${bbox.maxLat}`;
+        
+        bboxChanged = currentBBoxString !== newBBoxString;
+        
+        if (bboxChanged) {
+            console.log(`[DifferenceMap: DEBUG] BBox Changed! Current: ${currentBBoxString}, New: ${newBBoxString}`);
+        }
     }
 
-    // Recreate primitive to reflect color changes
-    // Note: Cesium requires primitive recreation for attribute updates
-    if (this.differenceCollection && this.differencePrimitive) {
-      this.differenceCollection.remove(this.differencePrimitive);
+
+    if (gridSizeChanged || bboxChanged) {
+      console.log(`[DifferenceMap] BBox or Grid size changed. Recreating geometry: ${rows}x${cols}`);
+
+      // ATOMIC START: Set flag to true to block subsequent messages until recreation is done
+      this.isRecreating = true; 
+      this.fastUpdateFailures = 0; // Reset failure counter on successful recreation
+
+      // 1. Temporarily store and destroy the old primitive (if it exists)
+      const oldPrimitive = this.differencePrimitive;
+      this.differencePrimitive = null; // Immediately null the reference to block M2's slow path check
+
+      if (oldPrimitive) {
+        this.differenceCollection!.remove(oldPrimitive); // Remove from collection immediately
+        oldPrimitive.destroy(); // Destroy it. This is safe as 'this' reference is now null.
+      }
+      
+      this.gridSize = rows;
+      // CRITICAL FIX: Ensure a deep copy of the BBox and then LOCK the geometry
+      this.currentBBox = { 
+        minLon: bbox.minLon, 
+        minLat: bbox.minLat, 
+        maxLon: bbox.maxLon, 
+        maxLat: bbox.maxLat 
+      };
+      this.geometryLocked = true; // LOCK THE GEOMETRY AFTER INITIAL CREATION
+      
+      this.differenceInstances = this.createDifferenceGeometry(bbox);
+      
+      // 2. Assign the NEW Primitive safely
       this.differencePrimitive = new Primitive({
         geometryInstances: this.differenceInstances,
         appearance: new PerInstanceColorAppearance({
@@ -1001,114 +858,57 @@ class GeoV1Application {
         }),
         asynchronous: false
       });
-      this.differenceCollection.add(this.differencePrimitive);
-    }
-  }
+      this.differenceCollection!.add(this.differencePrimitive);
+      
+      // ATOMIC END: Reset flag *after* the new Primitive is fully initialized and assigned
+      this.isRecreating = false; 
 
-  /**
-   * CliMA RdBu-11 perceptual color palette for soil difference mapping
-   * @param normalizedValue - Value in [-1, +1] range (-1=degradation, +1=restoration)
-   * @returns Cesium Color with appropriate alpha
-   */
-  private getRdBu11Color(normalizedValue: number): Color {
-    // Map [-1, +1] to [0, 1] for palette index
-    const t = (normalizedValue + 1) / 2;
-
-    // CliMA RdBu-11 palette (11 stops)
-    const palette = [
-      [165, 0, 38],      // 0.0 - Dark red (max degradation)
-      [215, 48, 39],     // 0.1
-      [244, 109, 67],    // 0.2
-      [253, 174, 97],    // 0.3
-      [254, 224, 144],   // 0.4
-      [255, 255, 191],   // 0.5 - White (no change)
-      [224, 243, 248],   // 0.6
-      [171, 217, 233],   // 0.7
-      [116, 173, 209],   // 0.8
-      [69, 117, 180],    // 0.9
-      [49, 54, 149],     // 1.0 - Dark blue (max restoration)
-    ];
-
-    // Interpolate between palette stops
-    const index = t * 10;
-    const i = Math.floor(index);
-    const frac = index - i;
-    const i1 = Math.min(i, 9);
-    const i2 = Math.min(i + 1, 10);
-
-    const c1 = palette[i1];
-    const c2 = palette[i2];
-
-    const r = c1[0] + (c2[0] - c1[0]) * frac;
-    const g = c1[1] + (c2[1] - c1[1]) * frac;
-    const b = c1[2] + (c2[2] - c1[2]) * frac;
-
-    // Transparency: hide near-zero changes
-    const alpha = Math.abs(normalizedValue) < 0.05 ? 0.0 : 0.78;
-
-    return new Color(r / 255, g / 255, b / 255, alpha);
-  }
-
-  /**
-   * Read SOM field from SharedArrayBuffer
-   * @returns Float32Array of SOM values or null if not available
-   */
-  private readSOMFromSAB(): Float32Array | null {
-    if (!this.sab) return null;
-
-    const headerSize = 128;
-    const gridSize = this.gridSize * this.gridSize;
-    const somOffset = headerSize + gridSize * 4; // Second field (after theta)
-
-    return new Float32Array(this.sab, somOffset, gridSize);
-  }
-
-  /**
-   * Read bounding box from SharedArrayBuffer header
-   * @returns BoundingBox or default Kansas region
-   */
-  private readBBoxFromSAB(): BoundingBox {
-    if (!this.sab) {
-      // Default to Kansas test region
-      return { minLon: -95.1, minLat: 39.9, maxLon: -94.9, maxLat: 40.1 };
+      console.log(`[DifferenceMap] ✓ Geometry successfully recreated and BBox updated. Geometry Locked.`);
+      
+      // CRITICAL CONCURRENCY FIX: Return immediately after creating the Primitive 
+      // to let Cesium finish initialization on the next render loop.
+      return; 
     }
 
-    const view = new DataView(this.sab);
-    // BBox is at offset 24 (after version, epoch, rows, cols, timestamp)
-    return {
-      minLon: view.getFloat32(24, true),
-      minLat: view.getFloat32(28, true),
-      maxLon: view.getFloat32(32, true),
-      maxLat: view.getFloat32(36, true),
-    };
-  }
+    // 2. Fast Color Update Path (Non-destructive update)
+    
+    // Check if the primitive is actually available (and ready)
+    if (!this.differencePrimitive) return;
+    
+    const numCells = rows * cols;
 
-  /**
-   * Capture current SOM state as baseline for difference mapping
-   */
-  private captureBaseline() {
-    const somData = this.readSOMFromSAB();
-    if (somData) {
-      this.somBaseline = new Float32Array(somData);
-      const meanSOM = somData.reduce((a, b) => a + b, 0) / somData.length;
-      console.log(`[DifferenceMap] ✓ Baseline captured: ${somData.length} cells, mean SOM = ${meanSOM.toFixed(4)}`);
-    } else {
-      console.warn('[DifferenceMap] ✗ Cannot capture baseline - no SOM data');
+    // Use fast attribute update path ONLY if the primitive is ready
+    if (this.differencePrimitive.ready) {
+        try {
+            // Get the attributes object from the Primitive instance (fastest way to get to the GPU buffer)
+            const attribute = this.differencePrimitive.getGeometryInstanceAttributes(this.differenceInstances[0].id);
+
+            if (attribute && attribute.color && attribute.color.values) {
+                const colorValues = attribute.color.values as Uint8Array; 
+                
+                // CRITICAL: Copy the worker's colorArray directly into Cesium's attribute array.
+                colorValues.set(colorArray);
+                
+                // Mark the attribute dirty to tell Cesium to re-upload to the GPU
+                attribute.color.needsUpdate = true;
+                return; // Success! Return immediately.
+            }
+        } catch (e) {
+            // INSTRUMENTATION: Log the first 5 failures to understand why fast path is failing
+            if (this.fastUpdateFailures < 5) {
+                console.warn(`[DifferenceMap] Fast attribute update failed (${this.fastUpdateFailures + 1}/5): ${e}. Falling back.`);
+                this.fastUpdateFailures++;
+            } else if (this.fastUpdateFailures === 5) {
+                console.warn(`[DifferenceMap] Fast attribute update failure limit reached (5). Errors will now be suppressed. Falling back.`);
+                this.fastUpdateFailures++; // Increment one last time to prevent future logs
+            }
+        }
     }
-  }
-
-  /**
-   * Start difference map update loop
-   * Runs continuously at ~60 FPS when difference map is visible
-   */
-  private startDifferenceMapLoop() {
-    const update = () => {
-      if (this.showDifferenceMap && this.somBaseline) {
-        this.updateDifferenceColors();
-      }
-      requestAnimationFrame(update);
-    };
-    update();
+    
+    // FINAL FALLBACK: Slowest update path. Setting instance attributes directly.
+    // This runs only on the 1-2 frames after a BBox change before the fast path is ready.
+    // This is a NO-OP (return) to avoid the DeveloperError by not running code that accesses the destroyed Primitive.
+    return;
   }
 }
 

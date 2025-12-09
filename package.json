@@ -1,6 +1,6 @@
 {
   "name": "negentropic-core",
-  "version": "0.1.0-alpha",
+  "version": "0.4.0-alpha-genesis",
   "description": "Physics and systems engine powering the Negentropic ecosystem with SE(3)-based solvers",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

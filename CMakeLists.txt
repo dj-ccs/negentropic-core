@@ -12,14 +12,14 @@
 #   - BUILD_TESTS: ON/OFF (build test executables)
 #
 # Author: negentropic-core team
-# Version: 0.1.0
+# Version: 0.4.0-alpha-genesis
 # License: MIT OR GPL-3.0
 
 cmake_minimum_required(VERSION 3.15)
 
 project(negentropic-core
-    VERSION 0.1.0
-    DESCRIPTION "Deterministic physics kernel for Negentropic ecosystem"
+    VERSION 0.4.0
+    DESCRIPTION "Deterministic physics kernel for Negentropic ecosystem - Genesis v3.0"
     LANGUAGES C
 )
 

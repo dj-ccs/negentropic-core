@@ -1,12 +1,13 @@
 # negentropic-core
 
+[![Architecture](https://img.shields.io/badge/Architecture-v3.0_Genesis-00aa00.svg)]()
 [![License: Research FREE / Commercial 1%](https://img.shields.io/badge/License-Research%20FREE%20%2F%20Commercial%201%25-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.3.0--alpha-orange)](https://github.com/dj-ccs/negentropic-core/releases)
+[![Version](https://img.shields.io/badge/version-v0.4.0--alpha--genesis-orange)](https://github.com/dj-ccs/negentropic-core/releases)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen)]()
 [![Tests](https://img.shields.io/badge/tests-90%25%20passing-success)]()
 
 > **negentropic-core** is the deterministic physics engine powering regenerative ecosystem simulation.
-> Built on SE(3) Lie group mathematics, it provides high-performance solvers for coupled atmosphere-hydrology-soil processes that model ecosystem phase transitions from degraded to regenerative states. **NEW: REGv2 implements explosive nonlinear recovery through microbial priming and fungal-bacterial dynamics.**
+> Built on SE(3) Lie group mathematics, it provides high-performance solvers for coupled atmosphere-hydrology-soil processes that model ecosystem phase transitions from degraded to regenerative states. **NEW: Genesis v3.0 implements thermodynamically consistent barrier potentials, domain randomization calibration, and sparse memory models for planet-scale simulation.**
 
 ---
 

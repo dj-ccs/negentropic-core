@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Genesis v3.0 Domain Randomization Parameter Set",
+  "description": "Example parameter file with mean/std_dev/spatial_corr_length_metres for domain randomization as calibration (Genesis Principle #5)",
+  "version": "0.4.0-alpha-genesis",
+  "genesis_principles": {
+    "principle_5": "Domain Randomization is Calibration - every parameter is a distribution"
+  },
+
+  "hydrology": {
+    "rainfall_mm": {
+      "mean": 450.0,
+      "std_dev": 90.0,
+      "spatial_corr_length_metres": 5000,
+      "units": "mm yr^-1",
+      "description": "Annual rainfall with spatial correlation for ensemble runs"
+    },
+    "K_s": {
+      "mean": 5.0e-6,
+      "std_dev": 1.5e-6,
+      "spatial_corr_length_metres": 100,
+      "units": "m s^-1",
+      "description": "Saturated hydraulic conductivity with spatial heterogeneity"
+    },
+    "theta_s": {
+      "mean": 0.40,
+      "std_dev": 0.05,
+      "spatial_corr_length_metres": 200,
+      "units": "m^3 m^-3",
+      "description": "Saturated water content (porosity)"
+    },
+    "theta_r": {
+      "mean": 0.05,
+      "std_dev": 0.01,
+      "spatial_corr_length_metres": 200,
+      "units": "m^3 m^-3",
+      "description": "Residual water content"
+    }
+  },
+
+  "vegetation": {
+    "root_depth": {
+      "mean": 0.35,
+      "std_dev": 0.05,
+      "spatial_corr_length_metres": 50,
+      "units": "m",
+      "description": "Effective rooting depth"
+    },
+    "g1_medlyn": {
+      "mean": 4.0,
+      "std_dev": 0.5,
+      "spatial_corr_length_metres": 200,
+      "units": "kPa^0.5",
+      "description": "Medlyn stomatal slope parameter"
+    },
+    "veg_cover_init": {
+      "mean": 0.15,
+      "std_dev": 0.05,
+      "spatial_corr_length_metres": 500,
+      "units": "-",
+      "description": "Initial vegetation cover fraction"
+    }
+  },
+
+  "soil": {
+    "som_init": {
+      "mean": 0.010,
+      "std_dev": 0.002,
+      "spatial_corr_length_metres": 100,
+      "units": "-",
+      "description": "Initial soil organic matter fraction"
+    },
+    "FB_ratio_init": {
+      "mean": 0.5,
+      "std_dev": 0.2,
+      "spatial_corr_length_metres": 50,
+      "units": "-",
+      "description": "Initial fungal:bacterial biomass ratio"
+    },
+    "Phi_agg_init": {
+      "mean": 0.30,
+      "std_dev": 0.05,
+      "spatial_corr_length_metres": 100,
+      "units": "-",
+      "description": "Initial aggregate stability index"
+    }
+  },
+
+  "microbial": {
+    "P_max": {
+      "mean": 2.5,
+      "std_dev": 0.5,
+      "spatial_corr_length_metres": 500,
+      "units": "g C m^-2 d^-1",
+      "description": "Maximum microbial SOM production rate"
+    },
+    "R_base": {
+      "mean": 0.3,
+      "std_dev": 0.06,
+      "spatial_corr_length_metres": 500,
+      "units": "g C m^-2 d^-1",
+      "description": "Base respiration rate at reference temperature"
+    }
+  },
+
+  "atmospheric": {
+    "RH_mean": {
+      "mean": 0.65,
+      "std_dev": 0.10,
+      "spatial_corr_length_metres": 10000,
+      "units": "-",
+      "description": "Mean relative humidity"
+    },
+    "dT_night": {
+      "mean": 5.0,
+      "std_dev": 2.0,
+      "spatial_corr_length_metres": 5000,
+      "units": "degC",
+      "description": "Mean nighttime temperature drop"
+    }
+  },
+
+  "ensemble_config": {
+    "n_runs": 100,
+    "seed_base": 42,
+    "max_relative_stddev": 0.04,
+    "description": "Configuration for CI ensemble validation (Genesis Principle #5)"
+  },
+
+  "notes": {
+    "spatial_correlation": "spatial_corr_length_metres is reserved for future FFT-based correlated field generation",
+    "current_implementation": "CLT Gaussian sampling (12-sample) in fixed-point, spatially independent per cell"
+  }
+}
